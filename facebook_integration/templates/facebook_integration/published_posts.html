@@ -1,113 +1,111 @@
 {% extends 'facebook_integration/base.html' %}
 
-{% block title %}Posts Publicados - Facebook Automation{% endblock %}
-{% block page_title %}Posts Publicados{% endblock %}
+{% block title %}
+  Posts Publicados - Facebook Automation
+{% endblock %}
+{% block page_title %}
+  Posts Publicados
+{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <p class="text-muted">Histórico de posts publicados no Facebook</p>
+      <p class="text-muted">Histórico de posts publicados no Facebook</p>
     </div>
     <div>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-funnel"></i> Filtrar
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-download"></i> Exportar
-            </button>
-        </div>
+      <div class="btn-group" role="group">
+        <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-funnel"></i> Filtrar</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-download"></i> Exportar</button>
+      </div>
     </div>
-</div>
+  </div>
 
-<div class="row">
+  <div class="row">
     {% for post in posts %}
-    <div class="col-md-6 col-lg-4 mb-4">
+      <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h6 class="card-title">{{ post.facebook_page.name }}</h6>
-                    <span class="badge bg-success status-badge">
-                        Publicado
-                    </span>
-                </div>
-                <p class="card-text">{{ post.content|truncatewords:15 }}</p>
-                <div class="small text-muted mb-3">
-                    <div><i class="bi bi-calendar"></i> {{ post.published_at|date:"d/m/Y H:i" }}</div>
-                    {% if post.facebook_post_id %}
-                    <div><i class="bi bi-link-45deg"></i> ID: {{ post.facebook_post_id|truncatechars:15 }}</div>
-                    {% endif %}
-                    {% if post.scheduled_post %}
-                    <div><i class="bi bi-clock"></i> Agendado: {{ post.scheduled_post.scheduled_time|date:"d/m/Y H:i" }}</div>
-                    {% endif %}
-                </div>
-                
-                {% if post.engagement_data %}
-                <div class="small mb-3">
-                    <div class="row text-center">
-                        <div class="col-4">
-                            <strong>{{ post.engagement_data.likes|default:0 }}</strong>
-                            <div class="text-muted">Likes</div>
-                        </div>
-                        <div class="col-4">
-                            <strong>{{ post.engagement_data.comments|default:0 }}</strong>
-                            <div class="text-muted">Comentários</div>
-                        </div>
-                        <div class="col-4">
-                            <strong>{{ post.engagement_data.shares|default:0 }}</strong>
-                            <div class="text-muted">Shares</div>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-                
-                <div class="btn-group w-100" role="group">
-                    <button type="button" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-eye"></i> Ver Completo
-                    </button>
-                    {% if post.facebook_post_id %}
-                    <a href="#" target="_blank" class="btn btn-outline-info btn-sm">
-                        <i class="bi bi-facebook"></i> Ver no FB
-                    </a>
-                    {% endif %}
-                    <button type="button" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-bar-chart"></i> Métricas
-                    </button>
-                </div>
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title">{{ post.facebook_page.name }}</h6>
+              <span class="badge bg-success status-badge">Publicado</span>
             </div>
-        </div>
-    </div>
-    {% empty %}
-    <div class="col-12">
-        <div class="text-center py-5">
-            <i class="bi bi-check-circle text-muted" style="font-size: 4rem;"></i>
-            <h4 class="text-muted mt-3">Nenhum post publicado ainda</h4>
-            <p class="text-muted">Quando você publicar posts, eles aparecerão aqui</p>
-            <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Criar Primeiro Post
-            </a>
-        </div>
-    </div>
-    {% endfor %}
-</div>
+            <p class="card-text">{{ post.content|truncatewords:15 }}</p>
+            <div class="small text-muted mb-3">
+              <div>
+                <i class="bi bi-calendar"></i> {{ post.published_at|date:'d/m/Y H:i' }}
+              </div>
+              {% if post.facebook_post_id %}
+                <div>
+                  <i class="bi bi-link-45deg"></i> ID: {{ post.facebook_post_id|truncatechars:15 }}
+                </div>
+              {% endif %}
+              {% if post.scheduled_post %}
+                <div>
+                  <i class="bi bi-clock"></i> Agendado: {{ post.scheduled_post.scheduled_time|date:'d/m/Y H:i' }}
+                </div>
+              {% endif %}
+            </div>
 
-{% if posts %}
-<nav aria-label="Paginação">
-    <ul class="pagination justify-content-center">
+            {% if post.engagement_data %}
+              <div class="small mb-3">
+                <div class="row text-center">
+                  <div class="col-4">
+                    <strong>{{ post.engagement_data.likes|default:0 }}</strong>
+                    <div class="text-muted">Likes</div>
+                  </div>
+                  <div class="col-4">
+                    <strong>{{ post.engagement_data.comments|default:0 }}</strong>
+                    <div class="text-muted">Comentários</div>
+                  </div>
+                  <div class="col-4">
+                    <strong>{{ post.engagement_data.shares|default:0 }}</strong>
+                    <div class="text-muted">Shares</div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="btn-group w-100" role="group">
+              <button type="button" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Ver Completo</button>
+              {% if post.facebook_post_id %}
+                <a href="#" target="_blank" class="btn btn-outline-info btn-sm"><i class="bi bi-facebook"></i> Ver no FB</a>
+              {% endif %}
+              <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-bar-chart"></i> Métricas</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="text-center py-5">
+          <i class="bi bi-check-circle text-muted" style="font-size: 4rem;"></i>
+          <h4 class="text-muted mt-3">Nenhum post publicado ainda</h4>
+          <p class="text-muted">Quando você publicar posts, eles aparecerão aqui</p>
+          <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Criar Primeiro Post</a>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if posts %}
+    <nav aria-label="Paginação">
+      <ul class="pagination justify-content-center">
         <li class="page-item">
-            <a class="page-link" href="#" aria-label="Anterior">
-                <span aria-hidden="true">&laquo;</span>
-            </a>
+          <a class="page-link" href="#" aria-label="Anterior"><span aria-hidden="true">&laquo;</span></a>
         </li>
-        <li class="page-item active"><a class="page-link" href="#">1</a></li>
-        <li class="page-item"><a class="page-link" href="#">2</a></li>
-        <li class="page-item"><a class="page-link" href="#">3</a></li>
+        <li class="page-item active">
+          <a class="page-link" href="#">1</a>
+        </li>
         <li class="page-item">
-            <a class="page-link" href="#" aria-label="Próximo">
-                <span aria-hidden="true">&raquo;</span>
-            </a>
+          <a class="page-link" href="#">2</a>
         </li>
-    </ul>
-</nav>
-{% endif %}
+        <li class="page-item">
+          <a class="page-link" href="#">3</a>
+        </li>
+        <li class="page-item">
+          <a class="page-link" href="#" aria-label="Próximo"><span aria-hidden="true">&raquo;</span></a>
+        </li>
+      </ul>
+    </nav>
+  {% endif %}
 {% endblock %}

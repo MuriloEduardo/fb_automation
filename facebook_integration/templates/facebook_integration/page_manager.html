@@ -112,9 +112,13 @@
                   <!-- Status e Seguidores -->
                   <div class="d-flex justify-content-between align-items-center mb-3">
                     <span class="badge bg-{% if page.is_active %}
+                        
                         success
+
                       {% else %}
+                        
                         secondary
+
                       {% endif %}">
                       {% if page.is_active %}
                         Ativa
@@ -278,9 +282,9 @@
       const alertDiv = document.createElement('div')
       alertDiv.className = `alert alert-${type} alert-dismissible fade show`
       alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `
     
       const container = document.querySelector('.container-fluid')
       container.insertBefore(alertDiv, container.firstChild)

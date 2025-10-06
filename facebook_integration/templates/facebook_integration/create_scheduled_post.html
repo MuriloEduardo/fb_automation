@@ -15,15 +15,15 @@
         <div class="card-body">
           <form method="post" id="post-form">
             {% csrf_token %}
-            
+
             <!-- Tipo de postagem -->
             <div class="mb-3">
               <label class="form-label">Tipo de Postagem</label>
               <div class="btn-group w-100" role="group">
-                <input type="radio" class="btn-check" name="post_type" id="immediate" value="immediate" checked>
+                <input type="radio" class="btn-check" name="post_type" id="immediate" value="immediate" checked />
                 <label class="btn btn-outline-primary" for="immediate">Publicar Agora</label>
-                
-                <input type="radio" class="btn-check" name="post_type" id="scheduled" value="scheduled">
+
+                <input type="radio" class="btn-check" name="post_type" id="scheduled" value="scheduled" />
                 <label class="btn btn-outline-secondary" for="scheduled">Agendar</label>
               </div>
             </div>
@@ -33,16 +33,13 @@
               <label for="facebook_pages" class="form-label">Páginas do Facebook</label>
               <div class="border p-3 rounded" style="max-height: 200px; overflow-y: auto;">
                 <div class="form-check mb-2">
-                  <input class="form-check-input" type="checkbox" id="select_all_pages">
-                  <label class="form-check-label fw-bold" for="select_all_pages">
-                    Selecionar Todas
-                  </label>
+                  <input class="form-check-input" type="checkbox" id="select_all_pages" />
+                  <label class="form-check-label fw-bold" for="select_all_pages">Selecionar Todas</label>
                 </div>
-                <hr>
+                <hr />
                 {% for page in facebook_pages %}
                   <div class="form-check">
-                    <input class="form-check-input page-checkbox" type="checkbox" 
-                           name="facebook_pages" value="{{ page.id }}" id="page_{{ page.id }}">
+                    <input class="form-check-input page-checkbox" type="checkbox" name="facebook_pages" value="{{ page.id }}" id="page_{{ page.id }}" />
                     <label class="form-check-label" for="page_{{ page.id }}">
                       {{ page.name }}
                       {% if not page.can_publish %}
@@ -69,11 +66,10 @@
             <!-- Conteúdo -->
             <div class="mb-3">
               <label for="content" class="form-label">Conteúdo do Post</label>
-              <textarea class="form-control" id="content" name="content" rows="8" 
-                        placeholder="Digite o conteúdo do post...&#10;&#10;Dicas:&#10;- Use **texto** para negrito&#10;- Use *texto* para itálico&#10;- Use # para títulos&#10;- Use - para listas"></textarea>
-              
+              <textarea class="form-control" id="content" name="content" rows="8" placeholder="Digite o conteúdo do post...&#10;&#10;Dicas:&#10;- Use **texto** para negrito&#10;- Use *texto* para itálico&#10;- Use # para títulos&#10;- Use - para listas"></textarea>
+
               <div class="form-check mt-2">
-                <input class="form-check-input" type="checkbox" id="use_markdown" name="use_markdown">
+                <input class="form-check-input" type="checkbox" id="use_markdown" name="use_markdown" />
                 <label class="form-check-label" for="use_markdown">
                   Processar como Markdown
                   <small class="text-muted">(converte **negrito**, *itálico*, etc.)</small>
@@ -88,16 +84,10 @@
             </div>
 
             <div class="d-flex justify-content-between">
-              <a href="{% url 'facebook_integration:scheduled_posts' %}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Voltar
-              </a>
+              <a href="{% url 'facebook_integration:scheduled_posts' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Voltar</a>
               <div>
-                <button type="button" class="btn btn-outline-primary me-2" id="preview-btn">
-                  <i class="bi bi-eye"></i> Pré-visualizar
-                </button>
-                <button type="submit" class="btn btn-primary" id="submit-btn">
-                  <i class="bi bi-send"></i> <span id="submit-text">Publicar Agora</span>
-                </button>
+                <button type="button" class="btn btn-outline-primary me-2" id="preview-btn"><i class="bi bi-eye"></i> Pré-visualizar</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn"><i class="bi bi-send"></i> <span id="submit-text">Publicar Agora</span></button>
               </div>
             </div>
           </form>
@@ -137,9 +127,7 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">
-            <i class="bi bi-cloud-upload"></i> Processando Publicação
-          </h5>
+          <h5 class="modal-title"><i class="bi bi-cloud-upload"></i> Processando Publicação</h5>
         </div>
         <div class="modal-body">
           <div class="progress mb-3">
@@ -154,194 +142,191 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const postTypeInputs = document.querySelectorAll('input[name="post_type"]');
-    const datetimeGroup = document.getElementById('datetime-group');
-    const submitText = document.getElementById('submit-text');
-    const scheduledTimeInput = document.getElementById('scheduled_time');
-    const selectAllCheckbox = document.getElementById('select_all_pages');
-    const pageCheckboxes = document.querySelectorAll('.page-checkbox');
-    const previewBtn = document.getElementById('preview-btn');
-    const form = document.getElementById('post-form');
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const postTypeInputs = document.querySelectorAll('input[name="post_type"]')
+      const datetimeGroup = document.getElementById('datetime-group')
+      const submitText = document.getElementById('submit-text')
+      const scheduledTimeInput = document.getElementById('scheduled_time')
+      const selectAllCheckbox = document.getElementById('select_all_pages')
+      const pageCheckboxes = document.querySelectorAll('.page-checkbox')
+      const previewBtn = document.getElementById('preview-btn')
+      const form = document.getElementById('post-form')
     
-    // Controlar exibição do campo de data/hora
-    postTypeInputs.forEach(input => {
-        input.addEventListener('change', function() {
-            if (this.value === 'scheduled') {
-                datetimeGroup.style.display = 'block';
-                submitText.textContent = 'Agendar Posts';
-                scheduledTimeInput.required = true;
-            } else {
-                datetimeGroup.style.display = 'none';
-                submitText.textContent = 'Publicar Agora';
-                scheduledTimeInput.required = false;
-            }
-        });
-    });
+      // Controlar exibição do campo de data/hora
+      postTypeInputs.forEach((input) => {
+        input.addEventListener('change', function () {
+          if (this.value === 'scheduled') {
+            datetimeGroup.style.display = 'block'
+            submitText.textContent = 'Agendar Posts'
+            scheduledTimeInput.required = true
+          } else {
+            datetimeGroup.style.display = 'none'
+            submitText.textContent = 'Publicar Agora'
+            scheduledTimeInput.required = false
+          }
+        })
+      })
     
-    // Selecionar/deselecionar todas as páginas
-    selectAllCheckbox.addEventListener('change', function() {
-        pageCheckboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
-        });
-    });
+      // Selecionar/deselecionar todas as páginas
+      selectAllCheckbox.addEventListener('change', function () {
+        pageCheckboxes.forEach((checkbox) => {
+          checkbox.checked = this.checked
+        })
+      })
     
-    // Atualizar "selecionar todas" baseado nos checkboxes individuais
-    pageCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const checkedCount = document.querySelectorAll('.page-checkbox:checked').length;
-            selectAllCheckbox.checked = checkedCount === pageCheckboxes.length;
-            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < pageCheckboxes.length;
-        });
-    });
+      // Atualizar "selecionar todas" baseado nos checkboxes individuais
+      pageCheckboxes.forEach((checkbox) => {
+        checkbox.addEventListener('change', function () {
+          const checkedCount = document.querySelectorAll('.page-checkbox:checked').length
+          selectAllCheckbox.checked = checkedCount === pageCheckboxes.length
+          selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < pageCheckboxes.length
+        })
+      })
     
-    // Pré-visualização
-    previewBtn.addEventListener('click', function() {
-        const content = document.getElementById('content').value;
-        const useMarkdown = document.getElementById('use_markdown').checked;
-        const selectedPages = Array.from(document.querySelectorAll('.page-checkbox:checked'))
-            .map(cb => cb.nextElementSibling.textContent.trim());
-        
+      // Pré-visualização
+      previewBtn.addEventListener('click', function () {
+        const content = document.getElementById('content').value
+        const useMarkdown = document.getElementById('use_markdown').checked
+        const selectedPages = Array.from(document.querySelectorAll('.page-checkbox:checked')).map((cb) => cb.nextElementSibling.textContent.trim())
+    
         // Mostrar conteúdo
-        let previewHtml = '';
+        let previewHtml = ''
         if (content.trim()) {
-            if (useMarkdown) {
-                // Simular conversão básica de markdown
-                previewHtml = content
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/\n/g, '<br>');
-            } else {
-                previewHtml = content.replace(/\n/g, '<br>');
-            }
-            document.getElementById('preview-content').innerHTML = 
-                '<div class="card"><div class="card-body">' + previewHtml + '</div></div>';
+          if (useMarkdown) {
+            // Simular conversão básica de markdown
+            previewHtml = content
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+              .replace(/\n/g, '<br>')
+          } else {
+            previewHtml = content.replace(/\n/g, '<br>')
+          }
+          document.getElementById('preview-content').innerHTML = '<div class="card"><div class="card-body">' + previewHtml + '</div></div>'
         } else {
-            document.getElementById('preview-content').innerHTML = 
-                '<div class="alert alert-warning">Nenhum conteúdo inserido</div>';
+          document.getElementById('preview-content').innerHTML = '<div class="alert alert-warning">Nenhum conteúdo inserido</div>'
         }
-        
-        // Mostrar páginas selecionadas
-        const pagesList = document.getElementById('pages-list');
-        pagesList.innerHTML = '';
-        if (selectedPages.length > 0) {
-            selectedPages.forEach(page => {
-                const li = document.createElement('li');
-                li.textContent = page;
-                pagesList.appendChild(li);
-            });
-        } else {
-            pagesList.innerHTML = '<li class="text-warning">Nenhuma página selecionada</li>';
-        }
-        
-        // Mostrar modal
-        new bootstrap.Modal(document.getElementById('previewModal')).show();
-    });
     
-    // Envio do formulário
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
+        // Mostrar páginas selecionadas
+        const pagesList = document.getElementById('pages-list')
+        pagesList.innerHTML = ''
+        if (selectedPages.length > 0) {
+          selectedPages.forEach((page) => {
+            const li = document.createElement('li')
+            li.textContent = page
+            pagesList.appendChild(li)
+          })
+        } else {
+          pagesList.innerHTML = '<li class="text-warning">Nenhuma página selecionada</li>'
+        }
+    
+        // Mostrar modal
+        new bootstrap.Modal(document.getElementById('previewModal')).show()
+      })
+    
+      // Envio do formulário
+      form.addEventListener('submit', function (e) {
+        e.preventDefault()
+    
         // Validar seleção de páginas
-        const selectedPages = document.querySelectorAll('.page-checkbox:checked');
+        const selectedPages = document.querySelectorAll('.page-checkbox:checked')
         if (selectedPages.length === 0) {
-            alert('Selecione pelo menos uma página para publicar.');
-            return;
+          alert('Selecione pelo menos uma página para publicar.')
+          return
         }
-        
+    
         // Validar conteúdo
-        const content = document.getElementById('content').value.trim();
-        const template = document.getElementById('template').value;
+        const content = document.getElementById('content').value.trim()
+        const template = document.getElementById('template').value
         if (!content && !template) {
-            alert('Digite o conteúdo do post ou selecione um template.');
-            return;
+          alert('Digite o conteúdo do post ou selecione um template.')
+          return
         }
-        
+    
         // Mostrar modal de progresso
-        const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
-        progressModal.show();
-        
+        const progressModal = new bootstrap.Modal(document.getElementById('progressModal'))
+        progressModal.show()
+    
         // Preparar dados
-        const formData = new FormData(form);
-        
+        const formData = new FormData(form)
+    
         // Enviar via AJAX
         fetch(form.action || window.location.href, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
         })
-        .then(response => response.json())
-        .then(data => {
+          .then((response) => response.json())
+          .then((data) => {
             if (data.success) {
-                if (data.task_id) {
-                    // Monitorar progresso da task
-                    checkTaskProgress(data.task_id);
-                } else {
-                    // Sucesso imediato
-                    progressModal.hide();
-                    window.location.href = data.redirect_url || '{% url "facebook_integration:scheduled_posts" %}';
-                }
+              if (data.task_id) {
+                // Monitorar progresso da task
+                checkTaskProgress(data.task_id)
+              } else {
+                // Sucesso imediato
+                progressModal.hide()
+                window.location.href = data.redirect_url || '{% url "facebook_integration:scheduled_posts" %}'
+              }
             } else {
-                progressModal.hide();
-                alert('Erro: ' + data.error);
+              progressModal.hide()
+              alert('Erro: ' + data.error)
             }
-        })
-        .catch(error => {
-            progressModal.hide();
-            alert('Erro de conexão: ' + error.message);
-        });
-    });
+          })
+          .catch((error) => {
+            progressModal.hide()
+            alert('Erro de conexão: ' + error.message)
+          })
+      })
     
-    function checkTaskProgress(taskId) {
-        const progressBar = document.querySelector('.progress-bar');
-        const progressStatus = document.getElementById('progress-status');
-        const progressDetails = document.getElementById('progress-details');
-        
+      function checkTaskProgress(taskId) {
+        const progressBar = document.querySelector('.progress-bar')
+        const progressStatus = document.getElementById('progress-status')
+        const progressDetails = document.getElementById('progress-details')
+    
         function updateProgress() {
-            fetch(`/facebook/task-status/${taskId}/`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.state === 'PROGRESS') {
-                        const percent = Math.round((data.current / data.total) * 100);
-                        progressBar.style.width = percent + '%';
-                        progressBar.textContent = percent + '%';
-                        progressStatus.textContent = data.status;
-                        
-                        setTimeout(updateProgress, 1000);
-                    } else if (data.state === 'SUCCESS') {
-                        progressBar.style.width = '100%';
-                        progressBar.textContent = '100%';
-                        progressStatus.textContent = 'Concluído!';
-                        
-                        // Mostrar resultados
-                        let resultsHtml = '<h6>Resultados:</h6>';
-                        if (data.result.success.length > 0) {
-                            resultsHtml += `<p class="text-success">${data.result.success.length} páginas publicadas com sucesso</p>`;
-                        }
-                        if (data.result.failed.length > 0) {
-                            resultsHtml += `<p class="text-danger">${data.result.failed.length} páginas falharam</p>`;
-                        }
-                        progressDetails.innerHTML = resultsHtml;
-                        
-                        setTimeout(() => {
-                            window.location.href = '{% url "facebook_integration:scheduled_posts" %}';
-                        }, 3000);
-                    } else if (data.state === 'FAILURE') {
-                        progressStatus.textContent = 'Erro: ' + data.result;
-                        progressBar.classList.add('bg-danger');
-                    }
-                })
-                .catch(error => {
-                    progressStatus.textContent = 'Erro de conexão';
-                    progressBar.classList.add('bg-danger');
-                });
+          fetch(`/facebook/task-status/${taskId}/`)
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.state === 'PROGRESS') {
+                const percent = Math.round((data.current / data.total) * 100)
+                progressBar.style.width = percent + '%'
+                progressBar.textContent = percent + '%'
+                progressStatus.textContent = data.status
+    
+                setTimeout(updateProgress, 1000)
+              } else if (data.state === 'SUCCESS') {
+                progressBar.style.width = '100%'
+                progressBar.textContent = '100%'
+                progressStatus.textContent = 'Concluído!'
+    
+                // Mostrar resultados
+                let resultsHtml = '<h6>Resultados:</h6>'
+                if (data.result.success.length > 0) {
+                  resultsHtml += `<p class="text-success">${data.result.success.length} páginas publicadas com sucesso</p>`
+                }
+                if (data.result.failed.length > 0) {
+                  resultsHtml += `<p class="text-danger">${data.result.failed.length} páginas falharam</p>`
+                }
+                progressDetails.innerHTML = resultsHtml
+    
+                setTimeout(() => {
+                  window.location.href = '{% url "facebook_integration:scheduled_posts" %}'
+                }, 3000)
+              } else if (data.state === 'FAILURE') {
+                progressStatus.textContent = 'Erro: ' + data.result
+                progressBar.classList.add('bg-danger')
+              }
+            })
+            .catch((error) => {
+              progressStatus.textContent = 'Erro de conexão'
+              progressBar.classList.add('bg-danger')
+            })
         }
-        
-        updateProgress();
-    }
-});
-</script>
+    
+        updateProgress()
+      }
+    })
+  </script>
 {% endblock %}

@@ -1,63 +1,69 @@
 {% extends 'facebook_integration/base.html' %}
 
-{% block title %}Posts Agendados - Facebook Automation{% endblock %}
-{% block page_title %}Posts Agendados{% endblock %}
+{% block title %}
+  Posts Agendados - Facebook Automation
+{% endblock %}
+{% block page_title %}
+  Posts Agendados
+{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <p class="text-muted">Gerencie posts agendados para publicação automática</p>
+      <p class="text-muted">Gerencie posts agendados para publicação automática</p>
     </div>
-    <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary">
-        <i class="bi bi-plus-circle"></i> Novo Post Agendado
-    </a>
-</div>
+    <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Novo Post Agendado</a>
+  </div>
 
-<div class="row">
+  <div class="row">
     {% for post in posts %}
-    <div class="col-md-6 col-lg-4 mb-4">
+      <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <h6 class="card-title">{{ post.facebook_page.name }}</h6>
-                    <span class="badge bg-{% if post.status == 'pending' %}warning{% elif post.status == 'ready' %}info{% elif post.status == 'published' %}success{% else %}danger{% endif %} status-badge">
-                        {{ post.get_status_display }}
-                    </span>
-                </div>
-                <p class="card-text">{{ post.content|truncatewords:15 }}</p>
-                <div class="small text-muted mb-3">
-                    <div><i class="bi bi-calendar"></i> {{ post.scheduled_time|date:"d/m/Y H:i" }}</div>
-                    {% if post.template %}
-                    <div><i class="bi bi-file-text"></i> {{ post.template.name }}</div>
-                    {% endif %}
-                </div>
-                <div class="btn-group w-100" role="group">
-                    <button type="button" class="btn btn-outline-primary btn-sm">
-                        <i class="bi bi-eye"></i> Ver
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-pencil"></i> Editar
-                    </button>
-                    {% if post.status == 'pending' %}
-                    <button type="button" class="btn btn-outline-danger btn-sm">
-                        <i class="bi bi-x-circle"></i> Cancelar
-                    </button>
-                    {% endif %}
-                </div>
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <h6 class="card-title">{{ post.facebook_page.name }}</h6>
+              <span class="badge bg-{% if post.status == 'pending' %}
+                  warning
+                {% elif post.status == 'ready' %}
+                  info
+                {% elif post.status == 'published' %}
+                  success
+                {% else %}
+                  danger
+                {% endif %} status-badge">
+                {{ post.get_status_display }}
+              </span>
             </div>
+            <p class="card-text">{{ post.content|truncatewords:15 }}</p>
+            <div class="small text-muted mb-3">
+              <div>
+                <i class="bi bi-calendar"></i> {{ post.scheduled_time|date:'d/m/Y H:i' }}
+              </div>
+              {% if post.template %}
+                <div>
+                  <i class="bi bi-file-text"></i> {{ post.template.name }}
+                </div>
+              {% endif %}
+            </div>
+            <div class="btn-group w-100" role="group">
+              <button type="button" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Ver</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Editar</button>
+              {% if post.status == 'pending' %}
+                <button type="button" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-circle"></i> Cancelar</button>
+              {% endif %}
+            </div>
+          </div>
         </div>
-    </div>
+      </div>
     {% empty %}
-    <div class="col-12">
+      <div class="col-12">
         <div class="text-center py-5">
-            <i class="bi bi-calendar-event text-muted" style="font-size: 4rem;"></i>
-            <h4 class="text-muted mt-3">Nenhum post agendado</h4>
-            <p class="text-muted">Agende posts para publicação automática nas suas páginas</p>
-            <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Agendar Primeiro Post
-            </a>
+          <i class="bi bi-calendar-event text-muted" style="font-size: 4rem;"></i>
+          <h4 class="text-muted mt-3">Nenhum post agendado</h4>
+          <p class="text-muted">Agende posts para publicação automática nas suas páginas</p>
+          <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Agendar Primeiro Post</a>
         </div>
-    </div>
+      </div>
     {% endfor %}
-</div>
+  </div>
 {% endblock %}

@@ -1,287 +1,313 @@
 {% extends 'facebook_integration/base.html' %}
 {% load static %}
 
-{% block title %}{{ title }}{% endblock %}
+{% block title %}
+  {{ title }}
+{% endblock %}
 
 {% block extra_css %}
-<style>
+  <style>
     .page-header {
-        background: linear-gradient(135deg, #1877f2, #42a5f5);
-        color: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 20px;
+      background: linear-gradient(135deg, #1877f2, #42a5f5);
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
     }
     .schedule-form {
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        padding: 20px;
-        border: 1px solid #dee2e6;
+      background-color: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      border: 1px solid #dee2e6;
     }
     .post-item {
-        border-left: 4px solid #1877f2;
-        margin-bottom: 15px;
-        transition: all 0.2s;
+      border-left: 4px solid #1877f2;
+      margin-bottom: 15px;
+      transition: all 0.2s;
     }
     .post-item:hover {
-        transform: translateX(5px);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transform: translateX(5px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     .status-badge {
-        font-size: 0.75rem;
+      font-size: 0.75rem;
     }
-</style>
+  </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+  <div class="container-fluid">
     <!-- Header da Página -->
     <div class="page-header">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h2 class="mb-2">
-                    <i class="fab fa-facebook-square"></i>
-                    {{ page.name }}
-                </h2>
-                <p class="mb-2">{{ page.category|default:"Categoria não definida" }}</p>
-                <div class="d-flex align-items-center">
-                    <span class="badge bg-{% if page.is_active %}success{% else %}secondary{% endif %} me-2">
-                        {% if page.is_active %}Ativa{% else %}Inativa{% endif %}
-                    </span>
-                    <span class="me-3">
-                        <i class="fas fa-users"></i> {{ page.followers_count|default:0 }} seguidores
-                    </span>
-                    {% if page.last_sync %}
-                    <span>
-                        <i class="fas fa-sync-alt"></i> 
-                        Atualizado {{ page.last_sync|timesince }} atrás
-                    </span>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="col-md-4 text-end">
-                <a href="{% url 'facebook_integration:page_manager' %}" class="btn btn-light me-2">
-                    <i class="fas fa-arrow-left"></i> Voltar
-                </a>
-                <button class="btn btn-warning" onclick="testPermissions()">
-                    <i class="fas fa-shield-alt"></i> Testar Conexão
-                </button>
-            </div>
+      <div class="row align-items-center">
+        <div class="col-md-8">
+          <h2 class="mb-2">
+            <i class="fab fa-facebook-square"></i>
+            {{ page.name }}
+          </h2>
+          <p class="mb-2">{{ page.category|default:'Categoria não definida' }}</p>
+          <div class="d-flex align-items-center">
+            <span class="badge bg-{% if page.is_active %}
+                success
+              {% else %}
+                secondary
+              {% endif %} me-2">
+              {% if page.is_active %}
+                Ativa
+              {% else %}
+                Inativa
+              {% endif %}
+            </span>
+            <span class="me-3"><i class="fas fa-users"></i> {{ page.followers_count|default:0 }} seguidores</span>
+            {% if page.last_sync %}
+              <span>
+                <i class="fas fa-sync-alt"></i>
+                Atualizado {{ page.last_sync|timesince }} atrás
+              </span>
+            {% endif %}
+          </div>
         </div>
+        <div class="col-md-4 text-end">
+          <a href="{% url 'facebook_integration:page_manager' %}" class="btn btn-light me-2"><i class="fas fa-arrow-left"></i> Voltar</a>
+          <button class="btn btn-warning" onclick="testPermissions()"><i class="fas fa-shield-alt"></i> Testar Conexão</button>
+        </div>
+      </div>
     </div>
 
     <div class="row">
-        <!-- Formulário de Agendamento -->
-        <div class="col-lg-5">
-            <div class="schedule-form">
-                <h4 class="mb-3">
-                    <i class="fas fa-calendar-plus text-primary"></i>
-                    Agendar Novo Post
-                </h4>
-                
-                {% if page.can_publish %}
-                <form method="post" action="{% url 'schedule_post_for_page' page.pk %}">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="template" class="form-label">Template:</label>
-                        <select name="template" id="template" class="form-select" required>
-                            <option value="">Selecione um template...</option>
-                            {% for template in templates %}
-                            <option value="{{ template.pk }}">{{ template.name }} ({{ template.category }})</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="scheduled_time" class="form-label">Data e Hora:</label>
-                        <input type="datetime-local" name="scheduled_time" id="scheduled_time" 
-                               class="form-control" required 
-                               min="{{ now|date:'Y-m-d\TH:i' }}">
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-clock"></i> Agendar Post
-                    </button>
-                </form>
-                {% else %}
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <strong>Sem permissão para publicar</strong><br>
-                    Esta página não possui permissões de publicação ou está inativa.
-                </div>
-                {% endif %}
-            </div>
+      <!-- Formulário de Agendamento -->
+      <div class="col-lg-5">
+        <div class="schedule-form">
+          <h4 class="mb-3">
+            <i class="fas fa-calendar-plus text-primary"></i>
+            Agendar Novo Post
+          </h4>
 
-            <!-- Permissões da Página -->
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-shield-alt text-info"></i>
-                        Permissões
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-6">
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="fas fa-edit text-{% if page.can_publish %}success{% else %}muted{% endif %} me-2"></i>
-                                <span class="{% if not page.can_publish %}text-muted{% endif %}">Publicar</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="d-flex align-items-center mb-2">
-                                <i class="fas fa-chart-bar text-{% if page.can_read_insights %}info{% else %}muted{% endif %} me-2"></i>
-                                <span class="{% if not page.can_read_insights %}text-muted{% endif %}">Métricas</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-bullhorn text-{% if page.can_manage_ads %}warning{% else %}muted{% endif %} me-2"></i>
-                                <span class="{% if not page.can_manage_ads %}text-muted{% endif %}">Anúncios</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-sync-alt text-{% if page.auto_sync %}primary{% else %}muted{% endif %} me-2"></i>
-                                <span class="{% if not page.auto_sync %}text-muted{% endif %}">Auto-sync</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          {% if page.can_publish %}
+            <form method="post" action="{% url 'schedule_post_for_page' page.pk %}">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="template" class="form-label">Template:</label>
+                <select name="template" id="template" class="form-select" required>
+                  <option value="">Selecione um template...</option>
+                  {% for template in templates %}
+                    <option value="{{ template.pk }}">{{ template.name }} ({{ template.category }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="scheduled_time" class="form-label">Data e Hora:</label>
+                <input type="datetime-local" name="scheduled_time" id="scheduled_time" class="form-control" required min="{{ now|date:'Y-m-d\TH:i' }}" />
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100"><i class="fas fa-clock"></i> Agendar Post</button>
+            </form>
+          {% else %}
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              <strong>Sem permissão para publicar</strong><br />
+              Esta página não possui permissões de publicação ou está inativa.
             </div>
+          {% endif %}
         </div>
 
-        <!-- Lista de Posts Agendados -->
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-calendar text-primary"></i>
-                        Posts Agendados
-                    </h5>
-                    <span class="badge bg-primary">{{ scheduled_posts|length }}</span>
-                </div>
-                <div class="card-body">
-                    {% if scheduled_posts %}
-                    <div class="list-group list-group-flush">
-                        {% for post in scheduled_posts %}
-                        <div class="list-group-item post-item">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <h6 class="mb-1">{{ post.template.name }}</h6>
-                                    <p class="mb-1 text-muted">
-                                        <i class="fas fa-clock"></i>
-                                        {{ post.scheduled_time|date:"d/m/Y H:i" }}
-                                    </p>
-                                    {% if post.generated_content %}
-                                    <small class="text-muted">
-                                        {{ post.generated_content|truncatechars:100 }}
-                                    </small>
-                                    {% endif %}
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-{% if post.status == 'published' %}success{% elif post.status == 'failed' %}danger{% elif post.status == 'ready' %}info{% else %}secondary{% endif %} status-badge">
-                                        {{ post.get_status_display }}
-                                    </span>
-                                    {% if post.status == 'pending' or post.status == 'ready' %}
-                                    <br>
-                                    <small>
-                                        <a href="#" class="text-primary" onclick="editPost({{ post.pk }})">
-                                            <i class="fas fa-edit"></i> Editar
-                                        </a>
-                                    </small>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
+        <!-- Permissões da Página -->
+        <div class="card mt-3">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="fas fa-shield-alt text-info"></i>
+              Permissões
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-6">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-edit text-{% if page.can_publish %}
+                      success
                     {% else %}
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-calendar-times fa-3x mb-3"></i>
-                        <p>Nenhum post agendado para esta página.</p>
-                        {% if page.can_publish %}
-                        <p>Use o formulário ao lado para agendar seu primeiro post!</p>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                      muted
+                    {% endif %} me-2">
 
-<!-- Modal de Loading -->
-<div class="modal fade" id="loadingModal" tabindex="-1">
-    <div class="modal-dialog modal-sm modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Carregando...</span>
+                  </i>
+                  <span class="{% if not page.can_publish %}text-muted{% endif %}">Publicar</span>
                 </div>
-                <p class="mt-2 mb-0">Testando conexão...</p>
+              </div>
+              <div class="col-6">
+                <div class="d-flex align-items-center mb-2">
+                  <i class="fas fa-chart-bar text-{% if page.can_read_insights %}
+                      info
+                    {% else %}
+                      muted
+                    {% endif %} me-2">
+
+                  </i>
+                  <span class="{% if not page.can_read_insights %}text-muted{% endif %}">Métricas</span>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-bullhorn text-{% if page.can_manage_ads %}
+                      warning
+                    {% else %}
+                      muted
+                    {% endif %} me-2">
+
+                  </i>
+                  <span class="{% if not page.can_manage_ads %}text-muted{% endif %}">Anúncios</span>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-sync-alt text-{% if page.auto_sync %}
+                      primary
+                    {% else %}
+                      muted
+                    {% endif %} me-2">
+
+                  </i>
+                  <span class="{% if not page.auto_sync %}text-muted{% endif %}">Auto-sync</span>
+                </div>
+              </div>
             </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Lista de Posts Agendados -->
+      <div class="col-lg-7">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="fas fa-calendar text-primary"></i>
+              Posts Agendados
+            </h5>
+            <span class="badge bg-primary">{{ scheduled_posts|length }}</span>
+          </div>
+          <div class="card-body">
+            {% if scheduled_posts %}
+              <div class="list-group list-group-flush">
+                {% for post in scheduled_posts %}
+                  <div class="list-group-item post-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="flex-grow-1">
+                        <h6 class="mb-1">{{ post.template.name }}</h6>
+                        <p class="mb-1 text-muted">
+                          <i class="fas fa-clock"></i>
+                          {{ post.scheduled_time|date:'d/m/Y H:i' }}
+                        </p>
+                        {% if post.generated_content %}
+                          <small class="text-muted">{{ post.generated_content|truncatechars:100 }}</small>
+                        {% endif %}
+                      </div>
+                      <div class="text-end">
+                        <span class="badge bg-{% if post.status == 'published' %}
+                            success
+                          {% elif post.status == 'failed' %}
+                            danger
+                          {% elif post.status == 'ready' %}
+                            info
+                          {% else %}
+                            secondary
+                          {% endif %} status-badge">
+                          {{ post.get_status_display }}
+                        </span>
+                        {% if post.status == 'pending' or post.status == 'ready' %}
+                          <br />
+                          <small><a href="#" class="text-primary" onclick="editPost({{ post.pk }})"><i class="fas fa-edit"></i> Editar</a></small>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                <p>Nenhum post agendado para esta página.</p>
+                {% if page.can_publish %}
+                  <p>Use o formulário ao lado para agendar seu primeiro post!</p>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
-</div>
+  </div>
+
+  <!-- Modal de Loading -->
+  <div class="modal fade" id="loadingModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body text-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Carregando...</span>
+          </div>
+          <p class="mt-2 mb-0">Testando conexão...</p>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-function testPermissions() {
-    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    modal.show();
+  <script>
+    function testPermissions() {
+      const modal = new bootstrap.Modal(document.getElementById('loadingModal'))
+      modal.show()
     
-    fetch(`{% url 'facebook_integration:test_page_permissions' page.pk %}`, {
+      fetch(`{% url 'facebook_integration:test_page_permissions' page.pk %}`, {
         method: 'POST',
         headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
         }
-    })
-    .then(response => response.json())
-    .then(data => {
-        modal.hide();
-        if (data.success) {
-            showAlert('success', 'Conexão testada com sucesso! Todas as permissões estão funcionando.');
-        } else {
-            showAlert('danger', data.error || 'Erro ao testar conexão');
-        }
-    })
-    .catch(error => {
-        modal.hide();
-        showAlert('danger', 'Erro de conexão: ' + error.message);
-    });
-}
-
-function editPost(postId) {
-    showAlert('info', 'Use o admin para editar posts: /admin/');
-}
-
-function showAlert(type, message) {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          modal.hide()
+          if (data.success) {
+            showAlert('success', 'Conexão testada com sucesso! Todas as permissões estão funcionando.')
+          } else {
+            showAlert('danger', data.error || 'Erro ao testar conexão')
+          }
+        })
+        .catch((error) => {
+          modal.hide()
+          showAlert('danger', 'Erro de conexão: ' + error.message)
+        })
+    }
     
-    const container = document.querySelector('.container-fluid');
-    container.insertBefore(alertDiv, container.firstChild);
+    function editPost(postId) {
+      showAlert('info', 'Use o admin para editar posts: /admin/')
+    }
     
-    setTimeout(() => {
+    function showAlert(type, message) {
+      const alertDiv = document.createElement('div')
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show`
+      alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `
+    
+      const container = document.querySelector('.container-fluid')
+      container.insertBefore(alertDiv, container.firstChild)
+    
+      setTimeout(() => {
         if (alertDiv.parentNode) {
-            alertDiv.remove();
+          alertDiv.remove()
         }
-    }, 5000);
-}
-
-// Set minimum datetime to now
-document.addEventListener('DOMContentLoaded', function() {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    const localTime = new Date(now.getTime() - offset);
-    document.getElementById('scheduled_time').min = localTime.toISOString().slice(0, 16);
-});
-</script>
+      }, 5000)
+    }
+    
+    // Set minimum datetime to now
+    document.addEventListener('DOMContentLoaded', function () {
+      const now = new Date()
+      const offset = now.getTimezoneOffset() * 60000
+      const localTime = new Date(now.getTime() - offset)
+      document.getElementById('scheduled_time').min = localTime.toISOString().slice(0, 16)
+    })
+  </script>
 {% endblock %}

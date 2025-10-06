@@ -140,9 +140,7 @@ OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 
 # Celery Configuration (for background tasks)
 # Celery Configuration - Using Database for Development
-CELERY_BROKER_URL = config(
-    "CELERY_BROKER_URL", default="django-db://"
-)
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="django-db://")
 CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="django-db")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -160,6 +158,6 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
 # Authentication URLs
-LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"

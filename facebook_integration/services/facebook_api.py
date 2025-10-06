@@ -43,10 +43,52 @@ class FacebookAPIClient:
             logger.error(f"Erro na requisição para Facebook API: {e}")
             raise FacebookAPIException(f"Erro na API do Facebook: {str(e)}")
 
-    def get_page_info(self) -> Dict[str, Any]:
+    def get_page_info(self, page_id: str = None) -> Dict[str, Any]:
         """Obtém informações da página do Facebook"""
-        endpoint = f"{self.page_id}"
+        target_page_id = page_id or self.page_id
+        endpoint = f"{target_page_id}"
         params = {"fields": "id,name,category,fan_count,followers_count,link"}
+        return self._make_request("GET", endpoint, params)
+
+    def test_publish_permission(self, page_id: str = None) -> bool:
+        """Testa se é possível publicar na página"""
+        try:
+            target_page_id = page_id or self.page_id
+            endpoint = f"{target_page_id}/feed"
+            
+            # Fazer uma requisição POST de teste sem publicar
+            test_data = {
+                "message": "TEST_POST_PERMISSION_CHECK",
+                "published": False  # Não publica o post
+            }
+            
+            result = self._make_request("POST", endpoint, test_data)
+            return True  # Se chegou até aqui, tem permissão
+            
+        except Exception as e:
+            logger.warning(f"Teste de permissão de publicação falhou: {e}")
+            return False
+
+    def test_insights_permission(self, page_id: str = None) -> bool:
+        """Testa se é possível ler insights da página"""
+        try:
+            target_page_id = page_id or self.page_id
+            endpoint = f"{target_page_id}/insights"
+            params = {"metric": "page_fan_adds", "period": "day"}
+            
+            self._make_request("GET", endpoint, params)
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Teste de permissão de insights falhou: {e}")
+            return False
+
+    def get_user_pages(self) -> Dict[str, Any]:
+        """Obtém todas as páginas que o usuário administra"""
+        endpoint = "me/accounts"
+        params = {
+            "fields": "id,name,access_token,category,fan_count,tasks"
+        }
         return self._make_request("GET", endpoint, params)
 
     def create_post(

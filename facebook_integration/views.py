@@ -14,6 +14,7 @@ import json
 from datetime import datetime
 
 
+@login_required
 def dashboard(request):
     """Dashboard principal com estatísticas"""
     context = {
@@ -34,11 +35,8 @@ def dashboard(request):
 
 @login_required
 def facebook_pages(request):
-    """Lista e gerencia páginas do Facebook"""
-    pages = FacebookPage.objects.all().order_by('-created_at')
-    return render(request, 'facebook_integration/facebook_pages.html', {
-        'pages': pages
-    })
+    """Redireciona para o novo gerenciador de páginas"""
+    return redirect('facebook_integration:page_manager')
 
 
 @login_required

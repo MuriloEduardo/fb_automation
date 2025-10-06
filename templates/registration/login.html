@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Facebook Automation{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <i class="fab fa-facebook fa-3x mb-3"></i>
+            <h3>Facebook Automation</h3>
+            <p class="mb-0">Faça login para acessar o sistema</p>
+        </div>
+        <div class="auth-body">
+            {% if form.errors %}
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    {% for field, errors in form.errors.items %}
+                        {% for error in errors %}
+                            {{ error }}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if next %}
+                {% if user.is_authenticated %}
+                    <div class="alert alert-warning" role="alert">
+                        Sua conta não tem acesso a esta página. Para continuar, faça login com uma conta que tenha acesso.
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="{{ form.username.id_for_label }}" class="form-label">
+                        <i class="fas fa-user me-2"></i>Usuário
+                    </label>
+                    <input type="text" 
+                           class="form-control" 
+                           name="{{ form.username.name }}" 
+                           id="{{ form.username.id_for_label }}"
+                           value="{{ form.username.value|default:'' }}"
+                           placeholder="Digite seu usuário"
+                           required>
+                </div>
+                <div class="mb-4">
+                    <label for="{{ form.password.id_for_label }}" class="form-label">
+                        <i class="fas fa-lock me-2"></i>Senha
+                    </label>
+                    <input type="password" 
+                           class="form-control" 
+                           name="{{ form.password.name }}" 
+                           id="{{ form.password.id_for_label }}"
+                           placeholder="Digite sua senha"
+                           required>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-facebook text-white">
+                        <i class="fas fa-sign-in-alt me-2"></i>Entrar
+                    </button>
+                </div>
+                <input type="hidden" name="next" value="{{ next }}" />
+            </form>
+            
+            <div class="text-center mt-4">
+                <p class="text-muted small">
+                    <i class="fas fa-shield-alt me-1"></i>
+                    Sistema seguro para automação do Facebook
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

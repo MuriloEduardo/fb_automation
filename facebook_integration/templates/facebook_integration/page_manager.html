@@ -1,0 +1,304 @@
+{% extends 'facebook_integration/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - Facebook Automation{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid #dee2e6;
+    }
+    .page-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .page-card.inactive {
+        opacity: 0.6;
+        background-color: #f8f9fa;
+    }
+    .permission-badge {
+        font-size: 0.75rem;
+        margin: 2px;
+    }
+    .stats-row {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 10px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fab fa-facebook text-primary"></i> {{ title }}</h2>
+                <div>
+                    <button class="btn btn-primary" onclick="syncPages()">
+                        <i class="fas fa-sync-alt"></i> Sincronizar Páginas
+                    </button>
+                    <a href="{% url 'facebook_integration:dashboard' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Voltar ao Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Estatísticas Gerais -->
+            <div class="stats-row">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary">{{ pages|length }}</h4>
+                        <small class="text-muted">Total de Páginas</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success">{{ active_pages_count }}</h4>
+                        <small class="text-muted">Páginas Ativas</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">{{ publishable_pages_count }}</h4>
+                        <small class="text-muted">Podem Publicar</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-warning">{{ max_followers }}</h4>
+                        <small class="text-muted">Maior Audiência</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Páginas -->
+            <div class="row">
+                {% for page in pages %}
+                <div class="col-lg-6 col-xl-4 mb-4">
+                    <div class="card page-card {% if not page.is_active %}inactive{% endif %}">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">
+                                    <i class="fab fa-facebook-square text-primary"></i>
+                                    {{ page.name }}
+                                </h5>
+                                <small class="text-muted">{{ page.category|default:"Sem categoria" }}</small>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                        data-bs-toggle="dropdown">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        {% if page.pk %}
+                                        <a class="dropdown-item" href="{% url 'facebook_integration:page_detail' page.pk %}">
+                                            <i class="fas fa-eye"></i> Detalhes
+                                        </a>
+                                        {% else %}
+                                        <span class="dropdown-item text-muted">
+                                            <i class="fas fa-eye"></i> Detalhes (Indisponível)
+                                        </span>
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <button class="dropdown-item" onclick="togglePageStatus({{ page.pk }})">
+                                            <i class="fas fa-power-off"></i>
+                                            {% if page.is_active %}Desativar{% else %}Ativar{% endif %}
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button class="dropdown-item" onclick="testPermissions({{ page.pk }})">
+                                            <i class="fas fa-shield-alt"></i> Testar Permissões
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="card-body">
+                            <!-- Status e Seguidores -->
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge bg-{% if page.is_active %}success{% else %}secondary{% endif %}">
+                                    {% if page.is_active %}Ativa{% else %}Inativa{% endif %}
+                                </span>
+                                <span class="text-muted">
+                                    <i class="fas fa-users"></i> {{ page.followers_count|default:0 }} seguidores
+                                </span>
+                            </div>
+
+                            <!-- Permissões -->
+                            <div class="mb-3">
+                                <small class="text-muted d-block mb-1">Permissões:</small>
+                                <div>
+                                    {% if page.can_publish %}
+                                        <span class="badge bg-success permission-badge">
+                                            <i class="fas fa-edit"></i> Publicar
+                                        </span>
+                                    {% endif %}
+                                    {% if page.can_read_insights %}
+                                        <span class="badge bg-info permission-badge">
+                                            <i class="fas fa-chart-bar"></i> Métricas
+                                        </span>
+                                    {% endif %}
+                                    {% if page.can_manage_ads %}
+                                        <span class="badge bg-warning permission-badge">
+                                            <i class="fas fa-bullhorn"></i> Anúncios
+                                        </span>
+                                    {% endif %}
+                                    {% if not page.can_publish and not page.can_read_insights and not page.can_manage_ads %}
+                                        <span class="badge bg-danger permission-badge">
+                                            <i class="fas fa-exclamation-triangle"></i> Sem permissões
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Última Sincronização -->
+                            {% if page.last_sync %}
+                            <small class="text-muted">
+                                <i class="fas fa-clock"></i>
+                                Sincronizado em {{ page.last_sync|date:"d/m/Y H:i" }}
+                            </small>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="card-footer">
+                            {% if page.is_active and page.can_publish and page.pk %}
+                            <a href="{% url 'facebook_integration:page_detail' page.pk %}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-calendar-plus"></i> Agendar Post
+                            </a>
+                            {% else %}
+                            <button class="btn btn-secondary btn-sm" disabled>
+                                <i class="fas fa-ban"></i> {% if not page.pk %}Página inválida{% else %}Sem permissão para postar{% endif %}
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <h4><i class="fab fa-facebook"></i> Nenhuma página encontrada</h4>
+                        <p>Clique em "Sincronizar Páginas" para carregar suas páginas do Facebook.</p>
+                        <button class="btn btn-primary" onclick="syncPages()">
+                            <i class="fas fa-sync-alt"></i> Sincronizar Agora
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Loading -->
+<div class="modal fade" id="loadingModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                <p class="mt-2 mb-0">Processando...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncPages() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch('{% url "facebook_integration:sync_facebook_pages" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert('danger', data.error || 'Erro ao sincronizar páginas');
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        showAlert('danger', 'Erro de conexão: ' + error.message);
+    });
+}
+
+function togglePageStatus(pageId) {
+    fetch(`{% url 'facebook_integration:toggle_page_status' 999 %}`.replace('999', pageId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showAlert('danger', data.error || 'Erro ao alterar status da página');
+        }
+    })
+    .catch(error => {
+        showAlert('danger', 'Erro de conexão: ' + error.message);
+    });
+}
+
+function testPermissions(pageId) {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch(`{% url 'facebook_integration:test_page_permissions' 999 %}`.replace('999', pageId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+        if (data.success) {
+            showAlert('success', 'Teste de permissões concluído com sucesso!');
+        } else {
+            showAlert('danger', data.error || 'Erro ao testar permissões');
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        showAlert('danger', 'Erro de conexão: ' + error.message);
+    });
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-remove após 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

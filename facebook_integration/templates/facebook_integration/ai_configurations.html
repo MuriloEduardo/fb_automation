@@ -1,0 +1,131 @@
+{% extends 'facebook_integration/base.html' %}
+
+{% block title %}Configurações de IA - Facebook Automation{% endblock %}
+{% block page_title %}Configurações de IA{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <p class="text-muted">Configure como a IA deve gerar conteúdo para seus posts</p>
+    </div>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newConfigModal">
+        <i class="bi bi-plus-circle"></i> Nova Configuração
+    </button>
+</div>
+
+<div class="row">
+    {% for config in configurations %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="card-title">{{ config.name }}</h5>
+                    <span class="badge bg-{% if config.is_active %}success{% else %}secondary{% endif %} status-badge">
+                        {% if config.is_active %}Ativo{% else %}Inativo{% endif %}
+                    </span>
+                </div>
+                <p class="card-text text-muted">{{ config.description|truncatewords:20 }}</p>
+                
+                <div class="small mb-3">
+                    <div class="text-muted mb-2"><strong>Configurações:</strong></div>
+                    <div><i class="bi bi-thermometer"></i> Temperatura: {{ config.temperature|default:"0.7" }}</div>
+                    <div><i class="bi bi-hash"></i> Max Tokens: {{ config.max_tokens|default:"500" }}</div>
+                    {% if config.model %}
+                    <div><i class="bi bi-cpu"></i> Modelo: {{ config.model }}</div>
+                    {% endif %}
+                </div>
+                
+                <div class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-eye"></i> Ver
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i> Editar
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm">
+                        <i class="bi bi-play-circle"></i> Testar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="bi bi-robot text-muted" style="font-size: 4rem;"></i>
+            <h4 class="text-muted mt-3">Nenhuma configuração encontrada</h4>
+            <p class="text-muted">Crie configurações personalizadas para diferentes tipos de conteúdo</p>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newConfigModal">
+                <i class="bi bi-plus-circle"></i> Criar Primeira Configuração
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Modal para Nova Configuração -->
+<div class="modal fade" id="newConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Configuração de IA</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="configForm">
+                    <div class="mb-3">
+                        <label for="configName" class="form-label">Nome da Configuração</label>
+                        <input type="text" class="form-control" id="configName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="configDescription" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="configDescription" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="configTemperature" class="form-label">Temperatura</label>
+                                <input type="number" class="form-control" id="configTemperature" 
+                                       min="0" max="2" step="0.1" value="0.7">
+                                <div class="form-text">Controla a criatividade (0 = conservador, 2 = criativo)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="configMaxTokens" class="form-label">Máximo de Tokens</label>
+                                <input type="number" class="form-control" id="configMaxTokens" 
+                                       min="50" max="2000" value="500">
+                                <div class="form-text">Tamanho máximo da resposta</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="configModel" class="form-label">Modelo</label>
+                        <select class="form-select" id="configModel">
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="configActive" checked>
+                            <label class="form-check-label" for="configActive">
+                                Configuração ativa
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary">Salvar Configuração</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

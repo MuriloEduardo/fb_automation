@@ -36,7 +36,8 @@ services:
       - static_volume:/app/static
       - media_volume:/app/media
     ports:
-      - "8000:8000"
+      - "80:8000"
+      - "443:8000"
     environment:
       - DEBUG=1
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation

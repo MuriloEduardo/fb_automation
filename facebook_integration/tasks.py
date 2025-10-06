@@ -140,9 +140,9 @@ def publish_post_task(post_id):
         PublishedPost.objects.create(
             facebook_page=post.facebook_page,
             scheduled_post=post,
-            content=post.generated_content,
             facebook_post_id=facebook_post_id,
-            facebook_post_url=facebook_post_url,
+            content=post.generated_content or post.content,
+            facebook_post_url=f"https://facebook.com/{facebook_post_id}",
         )
 
         logger.info(f"Post {post_id} publicado com sucesso: {facebook_post_id}")
@@ -329,18 +329,28 @@ def publish_to_multiple_pages(
                 continue
 
             # Publicar usando a API do Facebook
-            api_client = FacebookAPIClient(page.access_token, page.page_id)
-            post_response = api_client.create_post(processed_content)
+            try:
+                api_client = FacebookAPIClient(page.access_token, page.page_id)
+                post_response = api_client.create_post(processed_content)
+            except Exception as api_error:
+                logger.error(
+                    f"Erro na API do Facebook para página {page.page_id}: {str(api_error)}"
+                )
+                results["failed"].append(
+                    {
+                        "page_id": page_id,
+                        "page_name": page.name,
+                        "error": f"Erro na API do Facebook: {str(api_error)}",
+                    }
+                )
+                continue
 
             # Registrar post publicado
             published_post = PublishedPost.objects.create(
                 facebook_page=page,
-                template=template,
                 content=processed_content,
                 facebook_post_id=post_response.get("id"),
-                published_at=timezone.now(),
-                created_by=user,
-                metrics={},
+                facebook_post_url=f"https://facebook.com/{post_response.get('id')}",
             )
 
             results["success"].append(

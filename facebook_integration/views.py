@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect
 from django.contrib import messages
 from django.http import JsonResponse
 from django.utils import timezone
@@ -37,9 +38,8 @@ def dashboard(request):
 
 @login_required
 def facebook_pages(request):
-    """Lista e gerencia páginas do Facebook"""
-    pages = FacebookPage.objects.all().order_by("-created_at")
-    return render(request, "facebook_integration/facebook_pages.html", {"pages": pages})
+    """Lista e gerencia páginas do Facebook (legacy - redireciona para page_manager)"""
+    return redirect("facebook_integration:page_manager")
 
 
 @login_required

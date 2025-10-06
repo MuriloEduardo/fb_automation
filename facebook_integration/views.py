@@ -112,7 +112,8 @@ def scheduled_posts(request):
     page_obj = paginator.get_page(page_number)
 
     return render(
-        request, "facebook_integration/scheduled_posts.html", {"page_obj": page_obj}
+        request, "facebook_integration/scheduled_posts.html", 
+        {"page_obj": page_obj, "posts": page_obj}
     )
 
 

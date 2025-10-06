@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from django.urls import reverse
 from django.utils.safestring import mark_safe
 from .models import (
     FacebookPage,
@@ -9,9 +8,6 @@ from .models import (
     PublishedPost,
     AIConfiguration,
 )
-
-# Importar admins do Celery
-from .admin_celery import CeleryTaskAdmin, CeleryWorkerAdmin, CeleryTaskTemplateAdmin
 
 
 @admin.register(FacebookPage)

@@ -1,9 +1,11 @@
-from django.db import models
-from django.contrib.auth.models import User
-from django.utils import timezone
-from celery import current_app
-from celery.result import AsyncResult
 import json
+from django.db import models
+from celery import current_app
+from django.utils import timezone
+from celery.result import AsyncResult
+from django.contrib.auth.models import User
+
+from facebook_integration.models import ScheduledPost
 
 
 class CeleryTask(models.Model):
@@ -45,7 +47,7 @@ class CeleryTask(models.Model):
 
     # Relacionamentos
     scheduled_post = models.ForeignKey(
-        "ScheduledPost",
+        ScheduledPost,
         on_delete=models.CASCADE,
         null=True,
         blank=True,

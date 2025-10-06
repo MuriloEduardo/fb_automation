@@ -2,9 +2,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-# Importar modelos do Celery
-from .models_celery import CeleryTask, CeleryWorker, CeleryTaskTemplate
-
 
 class FacebookPage(models.Model):
     """Model para armazenar informações das páginas do Facebook"""

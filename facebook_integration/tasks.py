@@ -1,12 +1,15 @@
 import re
 import logging
+from datetime import datetime
 from celery import shared_task
 from django.utils import timezone
-from django.core.mail import send_mail
 from django.contrib.auth.models import User
-from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
+
+from tasks.models import CeleryTask
+from django.contrib.auth.models import User
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .services.openai_service import OpenAIService, OpenAIServiceException
+from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +17,6 @@ logger = logging.getLogger(__name__)
 def register_task(task_instance, scheduled_post=None, user=None):
     """Registra uma task no sistema de monitoramento"""
     try:
-        from .models_celery import CeleryTask
-
         CeleryTask.objects.create(
             task_id=task_instance.id,
             task_name=task_instance.name,
@@ -406,9 +407,6 @@ def schedule_multiple_posts(
     """
     Task para agendar posts em múltiplas páginas
     """
-    from django.contrib.auth.models import User
-    from datetime import datetime
-
     user = User.objects.get(id=user_id)
     scheduled_time = datetime.fromisoformat(scheduled_time_str)
 

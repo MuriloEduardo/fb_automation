@@ -1,5 +1,5 @@
+from . import views
 from django.urls import path
-from . import views, views_pages
 
 app_name = "facebook_integration"
 
@@ -7,22 +7,22 @@ urlpatterns = [
     # Dashboard
     path("", views.dashboard, name="dashboard"),
     # Facebook Pages Management
-    path("pages/", views_pages.page_manager, name="page_manager"),
-    path("pages/sync/", views_pages.sync_facebook_pages, name="sync_facebook_pages"),
-    path("pages/<int:page_id>/", views_pages.page_detail, name="page_detail"),
+    path("pages/", views.page_manager, name="page_manager"),
+    path("pages/sync/", views.sync_facebook_pages, name="sync_facebook_pages"),
+    path("pages/<int:page_id>/", views.page_detail, name="page_detail"),
     path(
         "pages/<int:page_id>/toggle/",
-        views_pages.toggle_page_status,
+        views.toggle_page_status,
         name="toggle_page_status",
     ),
     path(
         "pages/<int:page_id>/test/",
-        views_pages.test_page_permissions,
+        views.test_page_permissions,
         name="test_page_permissions",
     ),
     path(
         "pages/<int:page_id>/schedule/",
-        views_pages.schedule_post_for_page,
+        views.schedule_post_for_page,
         name="schedule_post_for_page",
     ),
     # Legacy Facebook Pages (manter compatibilidade)

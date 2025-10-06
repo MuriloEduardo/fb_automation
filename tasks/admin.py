@@ -1,14 +1,11 @@
-from django.contrib import admin
-from django.utils.html import format_html
 from django.urls import path
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.http import HttpResponseRedirect
 from celery import current_app
-from celery.result import AsyncResult
-import json
+from django.contrib import admin
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.utils.html import format_html
 
-from .models_celery import CeleryTask, CeleryWorker, CeleryTaskTemplate
+from .models import CeleryTask, CeleryWorker, CeleryTaskTemplate
 
 
 @admin.register(CeleryTask)

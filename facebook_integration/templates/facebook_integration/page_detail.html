@@ -48,9 +48,13 @@
           <p class="mb-2">{{ page.category|default:'Categoria não definida' }}</p>
           <div class="d-flex align-items-center">
             <span class="badge bg-{% if page.is_active %}
+                
                 success
+
               {% else %}
+                
                 secondary
+
               {% endif %} me-2">
               {% if page.is_active %}
                 Ativa
@@ -125,9 +129,13 @@
               <div class="col-6">
                 <div class="d-flex align-items-center mb-2">
                   <i class="fas fa-edit text-{% if page.can_publish %}
+                      
                       success
+
                     {% else %}
+                      
                       muted
+
                     {% endif %} me-2">
 
                   </i>
@@ -137,9 +145,13 @@
               <div class="col-6">
                 <div class="d-flex align-items-center mb-2">
                   <i class="fas fa-chart-bar text-{% if page.can_read_insights %}
+                      
                       info
+
                     {% else %}
+                      
                       muted
+
                     {% endif %} me-2">
 
                   </i>
@@ -149,9 +161,13 @@
               <div class="col-6">
                 <div class="d-flex align-items-center">
                   <i class="fas fa-bullhorn text-{% if page.can_manage_ads %}
+                      
                       warning
+
                     {% else %}
+                      
                       muted
+
                     {% endif %} me-2">
 
                   </i>
@@ -161,9 +177,13 @@
               <div class="col-6">
                 <div class="d-flex align-items-center">
                   <i class="fas fa-sync-alt text-{% if page.auto_sync %}
+                      
                       primary
+
                     {% else %}
+                      
                       muted
+
                     {% endif %} me-2">
 
                   </i>
@@ -203,13 +223,21 @@
                       </div>
                       <div class="text-end">
                         <span class="badge bg-{% if post.status == 'published' %}
+                            
                             success
+
                           {% elif post.status == 'failed' %}
+                            
                             danger
+
                           {% elif post.status == 'ready' %}
+                            
                             info
+
                           {% else %}
+                            
                             secondary
+
                           {% endif %} status-badge">
                           {{ post.get_status_display }}
                         </span>
@@ -262,7 +290,8 @@
         method: 'POST',
         headers: {
           'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         }
       })
         .then((response) => response.json())
@@ -288,9 +317,9 @@
       const alertDiv = document.createElement('div')
       alertDiv.className = `alert alert-${type} alert-dismissible fade show`
       alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `
     
       const container = document.querySelector('.container-fluid')
       container.insertBefore(alertDiv, container.firstChild)

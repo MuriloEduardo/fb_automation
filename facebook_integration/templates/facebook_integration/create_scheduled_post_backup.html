@@ -269,10 +269,16 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData,
             headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            return response.json()
+        })
         .then(data => {
             if (data.success) {
                 if (data.task_id) {
@@ -300,7 +306,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const progressDetails = document.getElementById('progress-details');
         
         function updateProgress() {
-            fetch(`/facebook/task-status/${taskId}/`)
+            fetch(`/facebook/task-status/${taskId}/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
                 .then(response => response.json())
                 .then(data => {
                     if (data.state === 'PROGRESS') {

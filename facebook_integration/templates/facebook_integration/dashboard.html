@@ -180,7 +180,11 @@
 {% block extra_js %}
   <script>
     function testOpenAI() {
-      fetch('{% url "facebook_integration:test_openai_connection" %}')
+      fetch('{% url "facebook_integration:test_openai_connection" %}', {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
         .then((response) => response.json())
         .then((data) => {
           if (data.success) {

@@ -6,3 +6,13 @@ kombu>=5.3.0
 python-decouple>=3.8
 django-extensions>=3.2.0
 Pillow>=10.0.0
+# Database
+psycopg2-binary>=2.9.0
+dj-database-url>=2.1.0
+# Celery brokers
+redis>=4.5.0
+# Celery monitoring
+flower>=2.0.0
+# Django Celery integration
+django-celery-beat>=2.5.0
+django-celery-results>=2.5.0

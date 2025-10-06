@@ -45,17 +45,18 @@ def sync_facebook_pages(request):
     try:
         # Usar token do usuário para listar páginas
         user_token = settings.FACEBOOK_ACCESS_TOKEN
-        url = "https://graph.facebook.com/v23.0/me/accounts"
+        url = "https://graph.facebook.com/v23.0/me"
         params = {
             "access_token": user_token,
-            "fields": "id,name,access_token,category,fan_count,tasks",
+            "fields": "id,name,accounts{id,name,access_token,category,fan_count,tasks}",
         }
 
         response = requests.get(url, params=params, timeout=10)
 
         if response.status_code == 200:
             data = response.json()
-            pages_data = data.get("data", [])
+            accounts = data.get("accounts", {})
+            pages_data = accounts.get("data", [])
 
             synced_count = 0
             updated_count = 0

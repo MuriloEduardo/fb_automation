@@ -12,7 +12,7 @@ class FacebookAPIClient:
     def __init__(self, access_token: str = None, page_id: str = None):
         self.access_token = access_token or settings.FACEBOOK_ACCESS_TOKEN
         self.page_id = page_id or settings.FACEBOOK_PAGE_ID
-        self.base_url = "https://graph.facebook.com/v18.0"
+        self.base_url = "https://graph.facebook.com/v23.0"
 
     def _make_request(
         self, method: str, endpoint: str, data: Dict = None, files: Dict = None
@@ -55,16 +55,16 @@ class FacebookAPIClient:
         try:
             target_page_id = page_id or self.page_id
             endpoint = f"{target_page_id}/feed"
-            
+
             # Fazer uma requisição POST de teste sem publicar
             test_data = {
                 "message": "TEST_POST_PERMISSION_CHECK",
-                "published": False  # Não publica o post
+                "published": False,  # Não publica o post
             }
-            
+
             result = self._make_request("POST", endpoint, test_data)
             return True  # Se chegou até aqui, tem permissão
-            
+
         except Exception as e:
             logger.warning(f"Teste de permissão de publicação falhou: {e}")
             return False
@@ -75,10 +75,10 @@ class FacebookAPIClient:
             target_page_id = page_id or self.page_id
             endpoint = f"{target_page_id}/insights"
             params = {"metric": "page_fan_adds", "period": "day"}
-            
+
             self._make_request("GET", endpoint, params)
             return True
-            
+
         except Exception as e:
             logger.warning(f"Teste de permissão de insights falhou: {e}")
             return False
@@ -86,9 +86,7 @@ class FacebookAPIClient:
     def get_user_pages(self) -> Dict[str, Any]:
         """Obtém todas as páginas que o usuário administra"""
         endpoint = "me/accounts"
-        params = {
-            "fields": "id,name,access_token,category,fan_count,tasks"
-        }
+        params = {"fields": "id,name,access_token,category,fan_count,tasks"}
         return self._make_request("GET", endpoint, params)
 
     def create_post(

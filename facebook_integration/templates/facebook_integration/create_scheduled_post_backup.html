@@ -3,7 +3,6 @@
 {% block title %}
   Criar Post Agendado - Facebook Automation
 {% endblock %}
-
 {% block page_title %}
   Criar Post Agendado
 {% endblock %}
@@ -344,4 +343,43 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+{% endblock %}
+                <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-plus"></i> Agendar Post</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    document.getElementById('template').addEventListener('change', function () {
+      const templateId = this.value
+      const contentTextarea = document.getElementById('content')
+    
+      if (templateId) {
+        contentTextarea.placeholder = 'O conteúdo será gerado automaticamente baseado no template selecionado'
+        contentTextarea.disabled = true
+      } else {
+        contentTextarea.placeholder = 'Digite o conteúdo do post...'
+        contentTextarea.disabled = false
+      }
+    })
+    
+    document.getElementById('preview-btn').addEventListener('click', function () {
+      const templateId = document.getElementById('template').value
+      const content = document.getElementById('content').value
+    
+      if (templateId && !content) {
+        alert('Pré-visualização de conteúdo gerado por IA será implementada em breve.')
+      } else if (content) {
+        alert('Pré-visualização:\n\n' + content)
+      } else {
+        alert('Selecione um template ou digite um conteúdo para pré-visualizar.')
+      }
+    })
+  </script>
 {% endblock %}

@@ -1,43 +1,57 @@
 from django.urls import path
 from . import views, views_pages
 
-app_name = 'facebook_integration'
+app_name = "facebook_integration"
 
 urlpatterns = [
     # Dashboard
-    path('', views.dashboard, name='dashboard'),
-    
+    path("", views.dashboard, name="dashboard"),
     # Facebook Pages Management
-    path('pages/', views_pages.page_manager, name='page_manager'),
-    path('pages/sync/', views_pages.sync_facebook_pages, name='sync_facebook_pages'),
-    path('pages/<int:page_id>/', views_pages.page_detail, name='page_detail'),
-    path('pages/<int:page_id>/toggle/', views_pages.toggle_page_status, name='toggle_page_status'),
-    path('pages/<int:page_id>/test/', views_pages.test_page_permissions, name='test_page_permissions'),
-    path('pages/<int:page_id>/schedule/', views_pages.schedule_post_for_page, name='schedule_post_for_page'),
-    
+    path("pages/", views_pages.page_manager, name="page_manager"),
+    path("pages/sync/", views_pages.sync_facebook_pages, name="sync_facebook_pages"),
+    path("pages/<int:page_id>/", views_pages.page_detail, name="page_detail"),
+    path(
+        "pages/<int:page_id>/toggle/",
+        views_pages.toggle_page_status,
+        name="toggle_page_status",
+    ),
+    path(
+        "pages/<int:page_id>/test/",
+        views_pages.test_page_permissions,
+        name="test_page_permissions",
+    ),
+    path(
+        "pages/<int:page_id>/schedule/",
+        views_pages.schedule_post_for_page,
+        name="schedule_post_for_page",
+    ),
     # Legacy Facebook Pages (manter compatibilidade)
-    path('facebook-pages/', views.facebook_pages, name='facebook_pages'),
-    path('facebook-pages/<int:page_id>/test/', views.test_facebook_connection, 
-         name='test_facebook_connection'),
-    
+    path("facebook-pages/", views.facebook_pages, name="facebook_pages"),
+    path(
+        "facebook-pages/<int:page_id>/test/",
+        views.test_facebook_connection,
+        name="test_facebook_connection",
+    ),
     # Post Templates
-    path('templates/', views.post_templates, name='post_templates'),
-    path('templates/create/', views.create_template, name='create_template'),
-    
+    path("templates/", views.post_templates, name="post_templates"),
+    path("templates/create/", views.create_template, name="create_template"),
     # Scheduled Posts
-    path('scheduled/', views.scheduled_posts, name='scheduled_posts'),
-    path('scheduled/create/', views.create_scheduled_post, 
-         name='create_scheduled_post'),
-    
+    path("scheduled/", views.scheduled_posts, name="scheduled_posts"),
+    path(
+        "scheduled/create/", views.create_scheduled_post, name="create_scheduled_post"
+    ),
     # AJAX endpoints
-    path('api/generate-content/', views.generate_content_preview, 
-         name='generate_content_preview'),
-    path('api/test-openai/', views.test_openai_connection, 
-         name='test_openai_connection'),
-    
+    path(
+        "api/generate-content/",
+        views.generate_content_preview,
+        name="generate_content_preview",
+    ),
+    path(
+        "api/test-openai/", views.test_openai_connection, name="test_openai_connection"
+    ),
+    path("task-status/<str:task_id>/", views.task_status, name="task_status"),
     # Published Posts
-    path('published/', views.published_posts, name='published_posts'),
-    
+    path("published/", views.published_posts, name="published_posts"),
     # AI Configurations
-    path('ai-config/', views.ai_configurations, name='ai_configurations'),
+    path("ai-config/", views.ai_configurations, name="ai_configurations"),
 ]

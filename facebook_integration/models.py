@@ -77,10 +77,26 @@ class ScheduledPost(models.Model):
     ]
 
     facebook_page = models.ForeignKey(FacebookPage, on_delete=models.CASCADE)
-    template = models.ForeignKey(PostTemplate, on_delete=models.CASCADE)
+    template = models.ForeignKey(
+        PostTemplate,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Template opcional - deixe vazio para conteúdo manual",
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
 
-    # Conteúdo gerado pela IA
+    # Conteúdo manual ou gerado pela IA
+    content = models.TextField(
+        blank=True,
+        verbose_name="Conteúdo Manual",
+        help_text="Conteúdo direto do post (opcional se usar template)",
+    )
+    use_markdown = models.BooleanField(
+        default=False,
+        verbose_name="Usar Markdown",
+        help_text="Se marcado, o conteúdo será processado como Markdown",
+    )
     generated_content = models.TextField(blank=True, verbose_name="Conteúdo Gerado")
     generated_image_prompt = models.TextField(
         blank=True, verbose_name="Prompt da Imagem"

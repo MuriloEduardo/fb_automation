@@ -1,10 +1,12 @@
+import re
+import logging
 from celery import shared_task
 from django.utils import timezone
 from django.core.mail import send_mail
-from .models import ScheduledPost, PublishedPost
+from django.contrib.auth.models import User
+from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .services.openai_service import OpenAIService, OpenAIServiceException
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -271,3 +273,263 @@ def send_daily_report():
 
     logger.info(f"Relatório diário gerado: {published_today} posts publicados")
     return report
+
+
+@shared_task(bind=True)
+def publish_to_multiple_pages(
+    self, page_ids, content, user_id, template_id=None, use_markdown=False
+):
+    """
+    Task para publicar conteúdo em múltiplas páginas simultaneamente
+    """
+    user = User.objects.get(id=user_id)
+    results = {
+        "success": [],
+        "failed": [],
+        "total_pages": len(page_ids),
+        "processed": 0,
+    }
+
+    # Processar markdown se necessário
+    processed_content = content
+    if use_markdown:
+        processed_content = convert_html_to_facebook_text(content)
+
+    # Buscar template se fornecido
+    template = None
+    if template_id:
+        try:
+            template = PostTemplate.objects.get(id=template_id)
+        except PostTemplate.DoesNotExist:
+            logger.warning(f"Template {template_id} não encontrado")
+
+    for i, page_id in enumerate(page_ids):
+        try:
+            # Atualizar progresso
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": i + 1,
+                    "total": len(page_ids),
+                    "status": f"Publicando na página {i + 1} de {len(page_ids)}",
+                },
+            )
+
+            page = FacebookPage.objects.get(id=page_id)
+
+            # Verificar se a página pode publicar
+            if not page.can_publish:
+                results["failed"].append(
+                    {
+                        "page_id": page_id,
+                        "page_name": page.name,
+                        "error": "Página não tem permissão para publicar",
+                    }
+                )
+                continue
+
+            # Publicar usando a API do Facebook
+            api_client = FacebookAPIClient(page.access_token, page.page_id)
+            post_response = api_client.create_post(processed_content)
+
+            # Registrar post publicado
+            published_post = PublishedPost.objects.create(
+                facebook_page=page,
+                template=template,
+                content=processed_content,
+                facebook_post_id=post_response.get("id"),
+                published_at=timezone.now(),
+                created_by=user,
+                metrics={},
+            )
+
+            results["success"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": page.name,
+                    "post_id": published_post.pk,
+                    "facebook_post_id": post_response.get("id"),
+                }
+            )
+
+        except FacebookPage.DoesNotExist:
+            results["failed"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": "Desconhecida",
+                    "error": "Página não encontrada",
+                }
+            )
+        except FacebookAPIException as e:
+            results["failed"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "error": f"Erro na API do Facebook: {str(e)}",
+                }
+            )
+        except Exception as e:
+            logger.error(f"Erro ao publicar na página {page_id}: {str(e)}")
+            results["failed"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "error": f"Erro interno: {str(e)}",
+                }
+            )
+
+        results["processed"] += 1
+
+    return results
+
+
+@shared_task(bind=True)
+def schedule_multiple_posts(
+    self,
+    page_ids,
+    content,
+    scheduled_time_str,
+    user_id,
+    template_id=None,
+    use_markdown=False,
+):
+    """
+    Task para agendar posts em múltiplas páginas
+    """
+    from django.contrib.auth.models import User
+    from datetime import datetime
+
+    user = User.objects.get(id=user_id)
+    scheduled_time = datetime.fromisoformat(scheduled_time_str)
+
+    results = {
+        "success": [],
+        "failed": [],
+        "total_pages": len(page_ids),
+        "processed": 0,
+    }
+
+    # Buscar template se fornecido
+    template = None
+    if template_id:
+        try:
+            template = PostTemplate.objects.get(id=template_id)
+        except PostTemplate.DoesNotExist:
+            logger.warning(f"Template {template_id} não encontrado")
+
+    for i, page_id in enumerate(page_ids):
+        try:
+            # Atualizar progresso
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": i + 1,
+                    "total": len(page_ids),
+                    "status": f"Agendando para página {i + 1} de {len(page_ids)}",
+                },
+            )
+
+            page = FacebookPage.objects.get(id=page_id)
+
+            # Criar post agendado
+            scheduled_post = ScheduledPost.objects.create(
+                facebook_page=page,
+                template=template,
+                content=content,
+                scheduled_time=scheduled_time,
+                created_by=user,
+                use_markdown=use_markdown,
+                status="pending",
+            )
+
+            results["success"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": page.name,
+                    "scheduled_post_id": scheduled_post.pk,
+                }
+            )
+
+        except FacebookPage.DoesNotExist:
+            results["failed"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": "Desconhecida",
+                    "error": "Página não encontrada",
+                }
+            )
+        except Exception as e:
+            logger.error(f"Erro ao agendar post para página {page_id}: {str(e)}")
+            results["failed"].append(
+                {
+                    "page_id": page_id,
+                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "error": f"Erro interno: {str(e)}",
+                }
+            )
+
+        results["processed"] += 1
+
+    return results
+
+
+def convert_html_to_facebook_text(content):
+    """
+    Converte markdown básico para texto formatado apropriado para Facebook
+    (sem dependências externas)
+    """
+    if not content:
+        return ""
+
+    text = content
+
+    # Processar markdown básico se detectado
+    if any(marker in content for marker in ["**", "*", "#", "`", "- ", "1. ", "---"]):
+        text = process_simple_markdown(text)
+
+    # Limpar espaços extras e normalizar quebras de linha
+    text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)  # Max 2 quebras consecutivas
+    text = re.sub(r"[ \t]+", " ", text)  # Normalizar espaços
+    text = text.strip()
+
+    return text
+
+
+def process_simple_markdown(text):
+    """
+    Processador simples de markdown sem bibliotecas externas
+    """
+    # Títulos (# ## ###)
+    text = re.sub(r"^### (.+)$", r"🔹 \1", text, flags=re.MULTILINE)
+    text = re.sub(r"^## (.+)$", r"🔸 \1", text, flags=re.MULTILINE)
+    text = re.sub(r"^# (.+)$", r"📌 \1", text, flags=re.MULTILINE)
+
+    # Negrito (**texto**)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"𝗧𝗘𝗫𝗧𝗢_𝗣𝗥𝗢𝗩𝗜𝗦𝗢𝗥𝗜𝗢_\1_𝗙𝗜𝗠", text)
+    text = re.sub(r"𝗧𝗘𝗫𝗧𝗢_𝗣𝗥𝗢𝗩𝗜𝗦𝗢𝗥𝗜𝗢_(.+?)_𝗙𝗜𝗠", r"𝗧\1", text)
+
+    # Itálico (*texto*)
+    text = re.sub(r"\*([^*\n]+)\*", r"𝘛\1", text)
+
+    # Links [texto](url) -> apenas o texto com emoji
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"🔗 \1", text)
+
+    # Listas com traço (- item)
+    text = re.sub(r"^- (.+)$", r"• \1", text, flags=re.MULTILINE)
+
+    # Listas numeradas (1. item)
+    def replace_numbered_list(match):
+        return f"{match.group(1)}. {match.group(2)}"
+
+    text = re.sub(r"^(\d+)\. (.+)$", replace_numbered_list, text, flags=re.MULTILINE)
+
+    # Código inline (`código`)
+    text = re.sub(r"`([^`]+)`", r"▶️ \1", text)
+
+    # Linha horizontal (---)
+    text = re.sub(r"^---+$", "━━━━━━━━━━━━━━━━━━━━", text, flags=re.MULTILINE)
+
+    # Citações (> texto)
+    text = re.sub(r"^> (.+)$", r'💬 "\1"', text, flags=re.MULTILINE)
+
+    return text

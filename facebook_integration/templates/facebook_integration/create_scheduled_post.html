@@ -292,7 +292,7 @@
         const progressDetails = document.getElementById('progress-details')
     
         function updateProgress() {
-          fetch(`/facebook/task-status/${taskId}/`, {
+          fetch(`{% url 'facebook_integration:task_status' 'PLACEHOLDER' %}`.replace('PLACEHOLDER', taskId), {
             headers: {
               'X-Requested-With': 'XMLHttpRequest'
             }

@@ -1,20 +1,21 @@
 #!/bin/bash
 
-# Wait for database to be ready
-echo "Waiting for database..."
-while ! pg_isready -h db -p 5432 -U postgres; do
-    echo "Database is unavailable - sleeping"
-    sleep 1
-done
-echo "Database is up - executing migrations"
+# Wait for database to be ready (only for web service)
+if [ "$1" = "python" ] && [ "$2" = "manage.py" ] && [ "$3" = "runserver" ]; then
+    echo "Waiting for database..."
+    while ! pg_isready -h db -p 5432 -U postgres; do
+        echo "Database is unavailable - sleeping"
+        sleep 1
+    done
+    echo "Database is up - executing migrations"
 
-# Run migrations
-echo "Running migrations..."
-python manage.py migrate
+    # Run migrations
+    echo "Running migrations..."
+    python manage.py migrate
 
-# Create superuser if it doesn't exist
-echo "Checking for superuser..."
-python manage.py shell -c "
+    # Create superuser if it doesn't exist
+    echo "Checking for superuser..."
+    python manage.py shell -c "
 from django.contrib.auth.models import User
 if not User.objects.filter(username='admin').exists():
     User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
@@ -23,6 +24,8 @@ else:
     print('Superuser already exists')
 "
 
-# Start the server
-echo "Starting Django server..."
-exec python manage.py runserver 0.0.0.0:8000
+    echo "Starting Django server..."
+fi
+
+# Execute the command passed to the container
+exec "$@"

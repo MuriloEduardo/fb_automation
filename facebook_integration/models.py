@@ -161,6 +161,7 @@ class AIConfiguration(models.Model):
     """Model para configurações da IA"""
 
     name = models.CharField(max_length=255, verbose_name="Nome da Configuração")
+    description = models.TextField(blank=True, verbose_name="Descrição")
     model = models.CharField(
         max_length=100, default="gpt-3.5-turbo", verbose_name="Modelo da IA"
     )

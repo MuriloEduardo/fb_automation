@@ -1,5 +1,4 @@
 services:
-  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     volumes:
@@ -10,24 +9,26 @@ services:
       POSTGRES_PASSWORD: postgres123
     ports:
       - "5433:5432"
+    networks:
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
 
-  # Redis (for Celery broker)
   redis:
     image: redis:7-alpine
     ports:
       - "6380:6379"
+    networks:
+      - backend
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
 
-  # Django Web Application
   web:
     build: .
     command: python manage.py runserver 0.0.0.0:8000
@@ -49,8 +50,9 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - backend
 
-  # Celery Worker
   celery-worker:
     build: .
     command: celery -A fb_automation worker --loglevel=info
@@ -68,8 +70,9 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - backend
 
-  # Celery Beat Scheduler
   celery-beat:
     build: .
     command: celery -A fb_automation beat --loglevel=info
@@ -86,11 +89,12 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - backend
 
-  # Flower (Celery monitoring)
   flower:
     build: .
-    command: celery -A fb_automation flower
+    command: celery -A fb_automation flower --port=5555
     ports:
       - "5555:5555"
     environment:
@@ -102,8 +106,13 @@ services:
       - redis
       - celery-worker
     restart: unless-stopped
+    networks:
+      - backend
 
 volumes:
   postgres_data:
   static_volume:
   media_volume:
+
+networks:
+  backend:

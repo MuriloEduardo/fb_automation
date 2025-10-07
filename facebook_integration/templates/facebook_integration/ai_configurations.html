@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block content %}
+  {% csrf_token %}
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <p class="text-muted">Configure como a IA deve gerar conteúdo para seus posts</p>
@@ -23,9 +24,25 @@
             <div class="d-flex justify-content-between align-items-start mb-3">
               <h5 class="card-title">{{ config.name }}</h5>
               <span class="badge bg-{% if config.is_active %}
+                  
+                  
+                  
+                  
                   success
+
+
+
+
                 {% else %}
+                  
+                  
+                  
+                  
                   secondary
+
+
+
+
                 {% endif %} status-badge">
                 {% if config.is_active %}
                   Ativo
@@ -56,7 +73,7 @@
             <div class="btn-group w-100" role="group">
               <button type="button" class="btn btn-outline-primary btn-sm"><i class="bi bi-eye"></i> Ver</button>
               <button type="button" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Editar</button>
-              <button type="button" class="btn btn-outline-warning btn-sm"><i class="bi bi-play-circle"></i> Testar</button>
+              <button type="button" class="btn btn-outline-warning btn-sm" data-test-config="{{ config.id }}"><i class="bi bi-play-circle"></i> Testar</button>
             </div>
           </div>
         </div>
@@ -129,9 +146,92 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="button" class="btn btn-primary">Salvar Configuração</button>
+          <button type="button" class="btn btn-primary" id="saveConfigBtn">Salvar Configuração</button>
         </div>
       </div>
     </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const saveBtn = document.getElementById('saveConfigBtn')
+      const form = document.getElementById('configForm')
+    
+      saveBtn.addEventListener('click', function () {
+        // Validar formulário
+        const name = document.getElementById('configName').value.trim()
+        if (!name) {
+          alert('Nome da configuração é obrigatório')
+          return
+        }
+    
+        // Coletar dados do formulário
+        const formData = {
+          name: name,
+          description: document.getElementById('configDescription').value.trim(),
+          temperature: parseFloat(document.getElementById('configTemperature').value),
+          max_tokens: parseInt(document.getElementById('configMaxTokens').value),
+          model: document.getElementById('configModel').value,
+          is_default: document.getElementById('configActive').checked,
+          include_hashtags: true,
+          max_hashtags: 5,
+          include_emojis: true
+        }
+    
+        // Enviar dados via AJAX
+        fetch('{% url "facebook_integration:create_ai_configuration" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(formData)
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              alert('Configuração criada com sucesso!')
+              location.reload() // Recarregar página para mostrar nova configuração
+            } else {
+              alert('Erro: ' + data.error)
+            }
+          })
+          .catch((error) => {
+            console.error('Erro:', error)
+            alert('Erro ao salvar configuração')
+          })
+      })
+    
+      // Adicionar event listeners para os botões de teste
+      document.querySelectorAll('[data-test-config]').forEach((button) => {
+        button.addEventListener('click', function () {
+          const configId = this.getAttribute('data-test-config')
+          testConfiguration(configId)
+        })
+      })
+    })
+    
+    function testConfiguration(configId) {
+      fetch(`/facebook/ai-config/${configId}/test/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            alert('Teste realizado com sucesso!\n\nConteúdo gerado:\n' + data.test_content)
+          } else {
+            alert('Erro no teste: ' + data.error)
+          }
+        })
+        .catch((error) => {
+          console.error('Erro:', error)
+          alert('Erro ao testar configuração')
+        })
+    }
+  </script>
 {% endblock %}

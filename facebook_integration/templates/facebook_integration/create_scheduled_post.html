@@ -65,7 +65,10 @@
 
             <!-- Conteúdo -->
             <div class="mb-3">
-              <label for="content" class="form-label">Conteúdo do Post</label>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label for="content" class="form-label mb-0">Conteúdo do Post</label>
+                <button type="button" class="btn btn-outline-info btn-sm" id="generate-ai-btn"><i class="bi bi-magic"></i> Gerar com IA</button>
+              </div>
               <textarea class="form-control" id="content" name="content" rows="8" placeholder="Digite o conteúdo do post...&#10;&#10;Dicas:&#10;- Use **texto** para negrito&#10;- Use *texto* para itálico&#10;- Use # para títulos&#10;- Use - para listas"></textarea>
 
               <div class="form-check mt-2">
@@ -135,6 +138,63 @@
           </div>
           <p id="progress-status">Iniciando...</p>
           <div id="progress-details"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para geração automática de conteúdo com IA -->
+  <div class="modal fade" id="aiGenerateModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Gerar Conteúdo Inteligente com IA</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-3">
+            <i class="bi bi-info-circle"></i>
+            A IA vai analisar as páginas selecionadas e gerar conteúdo personalizado baseado nas características de cada uma.
+          </p>
+
+          <div id="selected-pages-info" class="mb-3">
+            <small class="text-muted">Selecione pelo menos uma página para gerar conteúdo</small>
+          </div>
+
+          <div class="mb-3">
+            <label for="content-type" class="form-label">Tipo de Conteúdo:</label>
+            <select class="form-select" id="content-type">
+              <option value="promotional">Promocional</option>
+              <option value="informative">Informativo</option>
+              <option value="engaging">Engajamento</option>
+              <option value="news">Notícias</option>
+              <option value="behind-scenes">Bastidores</option>
+              <option value="educational">Educativo</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label for="content-tone" class="form-label">Tom de Voz:</label>
+            <select class="form-select" id="content-tone">
+              <option value="professional">Profissional</option>
+              <option value="friendly">Amigável</option>
+              <option value="casual">Casual</option>
+              <option value="formal">Formal</option>
+              <option value="enthusiastic">Entusiasmado</option>
+              <option value="inspirational">Inspiracional</option>
+            </select>
+          </div>
+
+          <div id="ai-loading" class="text-center" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Gerando...</span>
+            </div>
+            <p class="mt-2">Analisando páginas e gerando conteúdo personalizado...</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="generate-ai-content-btn"><i class="bi bi-magic"></i> Gerar Conteúdo Inteligente</button>
         </div>
       </div>
     </div>
@@ -337,6 +397,113 @@
     
         updateProgress()
       }
+    })
+    
+    // Funcionalidade de geração de conteúdo com IA
+    const generateAiBtn = document.getElementById('generate-ai-btn')
+    const aiModal = new bootstrap.Modal(document.getElementById('aiGenerateModal'))
+    const generateAiContentBtn = document.getElementById('generate-ai-content-btn')
+    const aiLoading = document.getElementById('ai-loading')
+    const selectedPagesInfo = document.getElementById('selected-pages-info')
+    const contentType = document.getElementById('content-type')
+    const contentTone = document.getElementById('content-tone')
+    
+    // Função para atualizar informações das páginas selecionadas
+    function updateSelectedPagesInfo() {
+      const selectedPages = Array.from(document.querySelectorAll('.page-checkbox:checked'))
+      const selectedPagesInfo = document.getElementById('selected-pages-info')
+    
+      if (selectedPages.length === 0) {
+        selectedPagesInfo.innerHTML = '<small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Selecione pelo menos uma página para gerar conteúdo</small>'
+        document.getElementById('generate-ai-content-btn').disabled = true
+      } else {
+        const pageNames = selectedPages.map((checkbox) => {
+          const label = document.querySelector(`label[for="${checkbox.id}"]`)
+          return label.textContent.trim().split('\n')[0] // Remove badges
+        })
+    
+        selectedPagesInfo.innerHTML = `
+                      <div class="alert alert-info p-2 mb-0">
+                        <strong><i class="bi bi-facebook"></i> Páginas selecionadas (${selectedPages.length}):</strong><br>
+                        <small>${pageNames.join(', ')}</small>
+                      </div>
+                    `
+        document.getElementById('generate-ai-content-btn').disabled = false
+      }
+    }
+    
+    // Atualizar info quando modal abrir
+    generateAiBtn.addEventListener('click', function () {
+      updateSelectedPagesInfo()
+      aiModal.show()
+    })
+    
+    // Atualizar info quando checkboxes mudarem
+    document.addEventListener('change', function (e) {
+      if (e.target.classList.contains('page-checkbox') || e.target.id === 'select_all_pages') {
+        updateSelectedPagesInfo()
+      }
+    })
+    
+    generateAiContentBtn.addEventListener('click', function () {
+      const selectedPages = Array.from(document.querySelectorAll('.page-checkbox:checked'))
+    
+      if (selectedPages.length === 0) {
+        alert('Por favor, selecione pelo menos uma página')
+        return
+      }
+    
+      // Coletar informações das páginas selecionadas
+      const pagesData = selectedPages.map((checkbox) => {
+        const label = document.querySelector(`label[for="${checkbox.id}"]`)
+        const pageName = label.textContent.trim().split('\n')[0]
+        return {
+          id: checkbox.value,
+          name: pageName
+        }
+      })
+    
+      const selectedTemplate = document.getElementById('template').value
+    
+      // Mostrar loading
+      aiLoading.style.display = 'block'
+      generateAiContentBtn.disabled = true
+    
+      // Enviar requisição para gerar conteúdo inteligente
+      fetch('{% url "facebook_integration:generate_intelligent_content" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          pages: pagesData,
+          content_type: contentType.value,
+          content_tone: contentTone.value,
+          template_id: selectedTemplate || null
+        })
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          aiLoading.style.display = 'none'
+          generateAiContentBtn.disabled = false
+    
+          if (data.success) {
+            // Inserir conteúdo gerado no textarea
+            document.getElementById('content').value = data.content
+            aiModal.hide()
+            alert('Conteúdo inteligente gerado com sucesso!')
+          } else {
+            alert('Erro ao gerar conteúdo: ' + data.error)
+          }
+        })
+        .catch((error) => {
+          aiLoading.style.display = 'none'
+          generateAiContentBtn.disabled = false
+          console.error('Erro:', error)
+          alert('Erro ao gerar conteúdo com IA')
+        })
     })
   </script>
 {% endblock %}

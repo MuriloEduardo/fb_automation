@@ -1,4 +1,5 @@
 import json
+import logging
 import requests
 from django.db import models
 from django.conf import settings
@@ -18,6 +19,8 @@ from .models import (
 )
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .services.openai_service import OpenAIService, OpenAIServiceException
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -112,8 +115,9 @@ def scheduled_posts(request):
     page_obj = paginator.get_page(page_number)
 
     return render(
-        request, "facebook_integration/scheduled_posts.html", 
-        {"page_obj": page_obj, "posts": page_obj}
+        request,
+        "facebook_integration/scheduled_posts.html",
+        {"page_obj": page_obj, "posts": page_obj},
     )
 
 
@@ -234,15 +238,24 @@ def generate_content_preview(request):
         try:
             data = json.loads(request.body)
             template_id = data.get("template_id")
+            prompt = data.get("prompt")
             context_data = data.get("context", {})
 
-            template = get_object_or_404(PostTemplate, id=template_id)
+            # Se tem template_id, usar o template
+            if template_id:
+                template = get_object_or_404(PostTemplate, id=template_id)
+                final_prompt = template.prompt
+            # Se tem prompt direto, usar ele
+            elif prompt:
+                final_prompt = prompt
+            else:
+                return JsonResponse(
+                    {"success": False, "error": "Template ou prompt é obrigatório"}
+                )
 
             # Gera conteúdo usando OpenAI
             openai_service = OpenAIService()
-            content = openai_service.generate_post_content(
-                template.prompt, context_data
-            )
+            content = openai_service.generate_post_content(final_prompt, context_data)
 
             # Gera prompt para imagem
             image_prompt = openai_service.generate_image_prompt(content)
@@ -255,6 +268,144 @@ def generate_content_preview(request):
             return JsonResponse({"success": False, "error": str(e)})
 
     return JsonResponse({"success": False, "error": "Método não permitido"})
+
+
+@login_required
+def generate_intelligent_content(request):
+    """Gera conteúdo inteligente baseado nas páginas selecionadas"""
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            pages_data = data.get("pages", [])
+            content_type = data.get("content_type", "informative")
+            content_tone = data.get("content_tone", "professional")
+            template_id = data.get("template_id")
+
+            if not pages_data:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Pelo menos uma página deve ser selecionada",
+                    }
+                )
+
+            # Buscar informações detalhadas das páginas
+            page_ids = [page["id"] for page in pages_data]
+            pages = FacebookPage.objects.filter(id__in=page_ids)
+
+            # Construir contexto inteligente baseado nas páginas
+            context = {
+                "pages": [],
+                "content_type": content_type,
+                "content_tone": content_tone,
+                "total_followers": 0,
+                "categories": set(),
+                "page_count": len(pages),
+            }
+
+            for page in pages:
+                page_info = {
+                    "name": page.name,
+                    "category": page.category,
+                    "followers": page.followers_count,
+                }
+                context["pages"].append(page_info)
+                context["total_followers"] += page.followers_count
+                if page.category:
+                    context["categories"].add(page.category)
+
+            context["categories"] = list(context["categories"])
+
+            # Gerar prompt inteligente baseado no contexto
+            intelligent_prompt = _build_intelligent_prompt(context, template_id)
+
+            # Gerar conteúdo usando OpenAI
+            openai_service = OpenAIService()
+            content = openai_service.generate_post_content(intelligent_prompt, context)
+
+            return JsonResponse(
+                {"success": True, "content": content, "context_used": context}
+            )
+
+        except Exception as e:
+            logger.error(f"Erro ao gerar conteúdo inteligente: {e}")
+            return JsonResponse({"success": False, "error": f"Erro interno: {str(e)}"})
+
+    return JsonResponse({"success": False, "error": "Método não permitido"})
+
+
+def _build_intelligent_prompt(context, template_id=None):
+    """Constrói um prompt inteligente baseado no contexto das páginas"""
+
+    # Se há um template, usar como base
+    base_prompt = ""
+    if template_id:
+        try:
+            template = PostTemplate.objects.get(id=template_id)
+            base_prompt = template.prompt + "\n\n"
+        except PostTemplate.DoesNotExist:
+            pass
+
+    # Informações das páginas
+    pages_info = ""
+    if len(context["pages"]) == 1:
+        page = context["pages"][0]
+        pages_info = f"Página: {page['name']}"
+        if page["category"]:
+            pages_info += f" (Categoria: {page['category']})"
+        if page["followers"]:
+            pages_info += f" com {page['followers']:,} seguidores"
+    else:
+        pages_info = f"Múltiplas páginas ({context['page_count']} páginas)"
+        if context["categories"]:
+            pages_info += f" - Categorias: {', '.join(context['categories'])}"
+        if context["total_followers"]:
+            pages_info += f" - Total de seguidores: {context['total_followers']:,}"
+
+    # Tipo de conteúdo
+    content_descriptions = {
+        "promotional": "conteúdo promocional para gerar interesse em produtos/serviços",
+        "informative": "conteúdo informativo e educativo para a audiência",
+        "engaging": "conteúdo envolvente para aumentar interação e engajamento",
+        "news": "conteúdo de notícias ou atualizações relevantes",
+        "behind-scenes": "conteúdo de bastidores para mostrar o lado humano",
+        "educational": "conteúdo educativo para ensinar algo útil",
+    }
+
+    # Tom de voz
+    tone_descriptions = {
+        "professional": "tom profissional e corporativo",
+        "friendly": "tom amigável e próximo",
+        "casual": "tom casual e descontraído",
+        "formal": "tom formal e respeitoso",
+        "enthusiastic": "tom entusiasmado e energético",
+        "inspirational": "tom inspiracional e motivador",
+    }
+
+    content_desc = content_descriptions.get(
+        context["content_type"], "conteúdo relevante"
+    )
+    tone_desc = tone_descriptions.get(context["content_tone"], "tom apropriado")
+
+    # Montar prompt final
+    prompt = f"""{base_prompt}Crie {content_desc} com {tone_desc} para Facebook.
+
+Informações do contexto:
+- {pages_info}
+- Tipo de conteúdo: {context["content_type"]}
+- Tom desejado: {context["content_tone"]}
+
+Instruções específicas:
+- O conteúdo deve ser adequado para as características da(s) página(s)
+- Use linguagem que ressoe com o público-alvo
+- Inclua elementos que gerem engajamento (perguntas, call-to-action)
+- Mantenha o comprimento ideal para Facebook (100-250 palavras)
+- Use emojis apropriados para tornar o conteúdo mais atrativo
+- Inclua hashtags relevantes (#)
+
+Crie um post que seja autêntico e que funcione bem para todas as páginas selecionadas."""
+
+    return prompt
 
 
 @login_required
@@ -276,8 +427,78 @@ def ai_configurations(request):
     """Gerencia configurações de IA"""
     configs = AIConfiguration.objects.all().order_by("-created_at")
     return render(
-        request, "facebook_integration/ai_configurations.html", {"configs": configs}
+        request,
+        "facebook_integration/ai_configurations.html",
+        {"configurations": configs},
     )
+
+
+@login_required
+def create_ai_configuration(request):
+    """Cria uma nova configuração de IA"""
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+
+            # Validar dados obrigatórios
+            name = data.get("name", "").strip()
+            if not name:
+                return JsonResponse({"success": False, "error": "Nome é obrigatório"})
+
+            # Criar configuração
+            config = AIConfiguration.objects.create(
+                name=name,
+                description=data.get("description", ""),
+                model=data.get("model", "gpt-3.5-turbo"),
+                max_tokens=int(data.get("max_tokens", 500)),
+                temperature=float(data.get("temperature", 0.7)),
+                include_hashtags=data.get("include_hashtags", True),
+                max_hashtags=int(data.get("max_hashtags", 5)),
+                include_emojis=data.get("include_emojis", True),
+                is_default=data.get("is_default", False),
+            )
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "message": "Configuração criada com sucesso!",
+                    "config_id": config.id,
+                }
+            )
+
+        except (ValueError, KeyError) as e:
+            return JsonResponse(
+                {"success": False, "error": f"Dados inválidos: {str(e)}"}
+            )
+        except Exception as e:
+            return JsonResponse({"success": False, "error": f"Erro interno: {str(e)}"})
+
+    return JsonResponse({"success": False, "error": "Método não permitido"})
+
+
+@login_required
+def test_ai_configuration(request, config_id):
+    """Testa uma configuração específica de IA"""
+    try:
+        config = get_object_or_404(AIConfiguration, id=config_id)
+        openai_service = OpenAIService()
+
+        # Teste simples de geração de conteúdo
+        test_prompt = "Crie um post sobre tecnologia e inovação"
+        content = openai_service.generate_post_content(test_prompt, ai_config=config)
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Configuração testada com sucesso!",
+                "test_content": content,
+            }
+        )
+
+    except AIConfiguration.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Configuração não encontrada"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": f"Erro no teste: {str(e)}"})
 
 
 def test_openai_connection(request):

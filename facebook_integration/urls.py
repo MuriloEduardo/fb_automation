@@ -47,6 +47,11 @@ urlpatterns = [
         name="generate_content_preview",
     ),
     path(
+        "api/generate-intelligent-content/",
+        views.generate_intelligent_content,
+        name="generate_intelligent_content",
+    ),
+    path(
         "api/test-openai/", views.test_openai_connection, name="test_openai_connection"
     ),
     path("task-status/<str:task_id>/", views.task_status, name="task_status"),
@@ -54,4 +59,14 @@ urlpatterns = [
     path("published/", views.published_posts, name="published_posts"),
     # AI Configurations
     path("ai-config/", views.ai_configurations, name="ai_configurations"),
+    path(
+        "ai-config/create/",
+        views.create_ai_configuration,
+        name="create_ai_configuration",
+    ),
+    path(
+        "ai-config/<int:config_id>/test/",
+        views.test_ai_configuration,
+        name="test_ai_configuration",
+    ),
 ]

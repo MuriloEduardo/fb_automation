@@ -181,15 +181,5 @@ CELERY_CACHE_BACKEND = "django-cache"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
-# Celery Beat Configuration - Tarefas Agendadas
-CELERY_BEAT_SCHEDULE = {
-    "auto-generate-content": {
-        "task": "facebook_integration.tasks.auto_generate_and_post_content",
-        "schedule": 3600.0,  # Executa a cada hora (3600 segundos)
-        "options": {
-            "expires": 3000,  # Expira em 50 minutos se não executar
-        },
-    },
-}
 
 LOGOUT_REDIRECT_URL = "/accounts/login/"

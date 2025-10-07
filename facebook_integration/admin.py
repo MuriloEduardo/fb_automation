@@ -17,10 +17,17 @@ class FacebookPageAdmin(admin.ModelAdmin):
         "page_id",
         "permissions_display",
         "followers_count",
+        "auto_posting_display",
         "status_display",
         "last_sync",
     ]
-    list_filter = ["is_active", "can_publish", "can_read_insights", "created_at"]
+    list_filter = [
+        "is_active",
+        "auto_posting_enabled",
+        "can_publish",
+        "can_read_insights",
+        "created_at",
+    ]
     search_fields = ["name", "page_id", "category"]
     readonly_fields = ["created_at", "updated_at", "last_sync"]
     fieldsets = (
@@ -33,7 +40,10 @@ class FacebookPageAdmin(admin.ModelAdmin):
             "Permissões",
             {"fields": ("can_publish", "can_read_insights", "can_manage_ads")},
         ),
-        ("Configurações", {"fields": ("is_active", "auto_sync")}),
+        (
+            "Configurações",
+            {"fields": ("is_active", "auto_sync", "auto_posting_enabled")},
+        ),
         (
             "Metadados",
             {
@@ -63,7 +73,19 @@ class FacebookPageAdmin(admin.ModelAdmin):
 
     status_display.short_description = "Status"
 
-    actions = ["activate_pages", "deactivate_pages"]
+    def auto_posting_display(self, obj):
+        if obj.auto_posting_enabled:
+            return format_html('<span style="color: green;">●</span> Automático')
+        return format_html('<span style="color: orange;">●</span> Manual')
+
+    auto_posting_display.short_description = "Postagem"
+
+    actions = [
+        "activate_pages",
+        "deactivate_pages",
+        "enable_auto_posting",
+        "disable_auto_posting",
+    ]
 
     def activate_pages(self, request, queryset):
         count = queryset.update(is_active=True)
@@ -76,6 +98,18 @@ class FacebookPageAdmin(admin.ModelAdmin):
         self.message_user(request, f"{count} páginas foram desativadas.")
 
     deactivate_pages.short_description = "Desativar páginas selecionadas"
+
+    def enable_auto_posting(self, request, queryset):
+        count = queryset.update(auto_posting_enabled=True)
+        self.message_user(request, f"{count} páginas agora têm postagem automática.")
+
+    enable_auto_posting.short_description = "Habilitar postagem automática"
+
+    def disable_auto_posting(self, request, queryset):
+        count = queryset.update(auto_posting_enabled=False)
+        self.message_user(request, f"{count} páginas agora têm postagem manual.")
+
+    disable_auto_posting.short_description = "Desabilitar postagem automática"
 
 
 @admin.register(PostTemplate)
@@ -111,11 +145,19 @@ class PublishedPostAdmin(admin.ModelAdmin):
     list_display = [
         "facebook_page",
         "published_at",
+        "auto_generated_display",
+        "content_type",
         "likes_count",
         "comments_count",
         "shares_count",
     ]
-    list_filter = ["facebook_page", "published_at"]
+    list_filter = [
+        "facebook_page",
+        "auto_generated",
+        "content_type",
+        "content_tone",
+        "published_at",
+    ]
     search_fields = ["facebook_page__name", "content"]
     readonly_fields = [
         "facebook_post_id",
@@ -124,6 +166,13 @@ class PublishedPostAdmin(admin.ModelAdmin):
         "metrics_updated_at",
     ]
     date_hierarchy = "published_at"
+
+    def auto_generated_display(self, obj):
+        if obj.auto_generated:
+            return format_html('<span style="color: blue;">🤖</span> Automático')
+        return format_html('<span style="color: green;">👤</span> Manual')
+
+    auto_generated_display.short_description = "Origem"
 
 
 @admin.register(AIConfiguration)

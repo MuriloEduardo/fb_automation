@@ -26,6 +26,9 @@ class FacebookPage(models.Model):
     auto_sync = models.BooleanField(
         default=True, verbose_name="Sincronização Automática"
     )
+    auto_posting_enabled = models.BooleanField(
+        default=False, verbose_name="Postagem Automática Habilitada"
+    )
     last_sync = models.DateTimeField(
         null=True, blank=True, verbose_name="Última Sincronização"
     )
@@ -137,7 +140,29 @@ class PublishedPost(models.Model):
 
     content = models.TextField(verbose_name="Conteúdo Publicado")
     facebook_post_id = models.CharField(max_length=100)
-    facebook_post_url = models.URLField()
+    facebook_post_url = models.URLField(blank=True)
+
+    # Campos para posts automáticos
+    auto_generated = models.BooleanField(
+        default=False, verbose_name="Gerado Automaticamente"
+    )
+    content_type = models.CharField(
+        max_length=50, blank=True, verbose_name="Tipo de Conteúdo"
+    )
+    content_tone = models.CharField(
+        max_length=50, blank=True, verbose_name="Tom do Conteúdo"
+    )
+
+    # Status para controle
+    status = models.CharField(
+        max_length=20,
+        default="published",
+        choices=[
+            ("published", "Publicado"),
+            ("failed", "Falhou"),
+            ("deleted", "Deletado"),
+        ],
+    )
 
     # Métricas (podem ser coletadas posteriormente via API)
     likes_count = models.IntegerField(default=0)

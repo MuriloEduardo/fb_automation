@@ -1,5 +1,6 @@
 import re
 import logging
+from random import choice
 from datetime import datetime
 from celery import shared_task
 from django.utils import timezone
@@ -541,3 +542,203 @@ def process_simple_markdown(text):
     text = re.sub(r"^> (.+)$", r'💬 "\1"', text, flags=re.MULTILINE)
 
     return text
+
+
+@shared_task(bind=True)
+def auto_generate_and_post_content(self):
+    """
+    Tarefa automática que gera e posta conteúdo para todas as páginas ativas.
+    Executa de hora em hora via Celery Beat.
+    """
+    # Registrar task
+    register_task(self)
+
+    logger.info("Iniciando geração automática de conteúdo...")
+
+    # Buscar páginas ativas que devem receber posts automáticos
+    active_pages = FacebookPage.objects.filter(
+        is_active=True, auto_posting_enabled=True  # Vamos adicionar este campo
+    )
+
+    if not active_pages.exists():
+        logger.info("Nenhuma página configurada para posting automático")
+        return {"status": "no_pages", "message": "Nenhuma página configurada"}
+
+    # Tipos e tons variados para gerar conteúdo diversificado
+    content_types = [
+        "promotional",
+        "informative",
+        "engaging",
+        "behind-scenes",
+        "educational",
+    ]
+
+    content_tones = [
+        "professional",
+        "friendly",
+        "casual",
+        "enthusiastic",
+        "inspirational",
+    ]
+
+    results = []
+
+    for page in active_pages:
+        try:
+            logger.info(f"Gerando conteúdo para página: {page.name}")
+
+            # Selecionar tipo e tom aleatórios para variedade
+            content_type = choice(content_types)
+            content_tone = choice(content_tones)
+
+            # Construir contexto similar ao sistema inteligente
+            context = {
+                "pages": [
+                    {
+                        "name": page.name,
+                        "category": page.category,
+                        "followers": page.followers_count or 0,
+                    }
+                ],
+                "page_count": 1,
+                "total_followers": page.followers_count or 0,
+                "categories": [page.category] if page.category else [],
+                "content_type": content_type,
+                "content_tone": content_tone,
+            }
+
+            # Gerar prompt inteligente
+            intelligent_prompt = _build_intelligent_prompt_for_task(context)
+
+            # Gerar conteúdo usando OpenAI
+            openai_service = OpenAIService()
+            content = openai_service.generate_post_content(intelligent_prompt, context)
+
+            # Publicar diretamente no Facebook
+            facebook_client = FacebookAPIClient(
+                access_token=page.access_token, page_id=page.page_id
+            )
+
+            post_result = facebook_client.create_post(message=content)
+
+            # Salvar como post publicado
+            published_post = PublishedPost.objects.create(
+                facebook_page=page,
+                content=content,
+                facebook_post_id=post_result.get("id"),
+                published_at=timezone.now(),
+                status="published",
+                auto_generated=True,  # Vamos adicionar este campo
+                content_type=content_type,
+                content_tone=content_tone,
+            )
+
+            results.append(
+                {
+                    "page": page.name,
+                    "status": "success",
+                    "post_id": published_post.id,
+                    "facebook_id": post_result.get("id"),
+                }
+            )
+
+            logger.info(
+                f"Post automático criado para {page.name}: {post_result.get('id')}"
+            )
+
+        except Exception as e:
+            error_msg = f"Erro ao gerar/postar para {page.name}: {str(e)}"
+            logger.error(error_msg)
+            results.append({"page": page.name, "status": "error", "error": str(e)})
+
+    success_count = len([r for r in results if r["status"] == "success"])
+    error_count = len([r for r in results if r["status"] == "error"])
+
+    logger.info(
+        f"Geração automática concluída: {success_count} sucessos, {error_count} erros"
+    )
+
+    return {
+        "status": "completed",
+        "total_pages": len(active_pages),
+        "success_count": success_count,
+        "error_count": error_count,
+        "results": results,
+    }
+
+
+def _build_intelligent_prompt_for_task(context, template_id=None):
+    """
+    Versão da função de prompt inteligente para uso em tasks.
+    Cópia da função do views.py para evitar dependências circulares.
+    """
+
+    # Se há um template, usar como base
+    base_prompt = ""
+    if template_id:
+        try:
+            template = PostTemplate.objects.get(id=template_id)
+            base_prompt = template.prompt + "\n\n"
+        except PostTemplate.DoesNotExist:
+            pass
+
+    # Informações das páginas
+    pages_info = ""
+    if len(context["pages"]) == 1:
+        page = context["pages"][0]
+        pages_info = f"Página: {page['name']}"
+        if page["category"]:
+            pages_info += f" (Categoria: {page['category']})"
+        if page["followers"]:
+            pages_info += f" com {page['followers']:,} seguidores"
+    else:
+        pages_info = f"Múltiplas páginas ({context['page_count']} páginas)"
+        if context["categories"]:
+            pages_info += f" - Categorias: {', '.join(context['categories'])}"
+        if context["total_followers"]:
+            pages_info += f" - Total de seguidores: {context['total_followers']:,}"
+
+    # Tipo de conteúdo
+    content_descriptions = {
+        "promotional": "conteúdo promocional para gerar interesse em produtos/serviços",
+        "informative": "conteúdo informativo e educativo para a audiência",
+        "engaging": "conteúdo envolvente para aumentar interação e engajamento",
+        "news": "conteúdo de notícias ou atualizações relevantes",
+        "behind-scenes": "conteúdo de bastidores para mostrar o lado humano",
+        "educational": "conteúdo educativo para ensinar algo útil",
+    }
+
+    # Tom de voz
+    tone_descriptions = {
+        "professional": "tom profissional e corporativo",
+        "friendly": "tom amigável e próximo",
+        "casual": "tom casual e descontraído",
+        "formal": "tom formal e respeitoso",
+        "enthusiastic": "tom entusiasmado e energético",
+        "inspirational": "tom inspiracional e motivador",
+    }
+
+    content_desc = content_descriptions.get(
+        context["content_type"], "conteúdo relevante"
+    )
+    tone_desc = tone_descriptions.get(context["content_tone"], "tom apropriado")
+
+    # Montar prompt final
+    prompt = f"""{base_prompt}Crie {content_desc} com {tone_desc} para Facebook.
+        Informações do contexto:
+        - {pages_info}
+        - Tipo de conteúdo: {context["content_type"]}
+        - Tom desejado: {context["content_tone"]}
+
+        Instruções específicas:
+        - O conteúdo deve ser adequado para as características da(s) página(s)
+        - Use linguagem que ressoe com o público-alvo
+        - Inclua elementos que gerem engajamento (perguntas, call-to-action)
+        - Mantenha o comprimento ideal para Facebook (100-250 palavras)
+        - Use emojis apropriados para tornar o conteúdo mais atrativo
+        - Inclua hashtags relevantes (#)
+
+        Crie um post que seja autêntico e que funcione bem para todas as páginas selecionadas.
+    """
+
+    return prompt

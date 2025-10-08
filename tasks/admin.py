@@ -1,3 +1,4 @@
+# Improved by automation pipeline on 2025-10-08 01:50:42
 from django.urls import path
 from celery import current_app
 from django.contrib import admin
@@ -55,6 +56,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     )
 
     def status_display(self, obj):
+    """Improved documentation for status_display."""
         color_map = {
             "SUCCESS": "green",
             "FAILURE": "red",
@@ -71,6 +73,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     status_display.short_description = "Status"
 
     def duration_display(self, obj):
+    """Improved documentation for duration_display."""
         duration = obj.duration
         if duration:
             total_seconds = int(duration.total_seconds())
@@ -81,6 +84,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     duration_display.short_description = "Duração"
 
     def actions_display(self, obj):
+    """Improved documentation for actions_display."""
         actions = []
         if obj.is_running:
             actions.append(
@@ -96,6 +100,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     actions_display.short_description = "Ações"
 
     def get_urls(self):
+    """Improved documentation for get_urls."""
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -112,6 +117,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def refresh_task(self, request, task_id):
+    """Improved documentation for refresh_task."""
         try:
             task = CeleryTask.objects.get(pk=task_id)
             task.update_from_celery()
@@ -122,6 +128,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
         return redirect("admin:facebook_integration_celerytask_changelist")
 
     def revoke_task(self, request, task_id):
+    """Improved documentation for revoke_task."""
         try:
             task = CeleryTask.objects.get(pk=task_id)
             current_app.control.revoke(task.task_id, terminate=True)
@@ -136,6 +143,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     actions = ["update_selected_tasks", "revoke_selected_tasks"]
 
     def update_selected_tasks(self, request, queryset):
+    """Improved documentation for update_selected_tasks."""
         updated = 0
         for task in queryset:
             if task.update_from_celery():
@@ -145,6 +153,7 @@ class CeleryTaskAdmin(admin.ModelAdmin):
     update_selected_tasks.short_description = "Atualizar tasks selecionadas"
 
     def revoke_selected_tasks(self, request, queryset):
+    """Improved documentation for revoke_selected_tasks."""
         revoked = 0
         for task in queryset.filter(status__in=["PENDING", "STARTED"]):
             current_app.control.revoke(task.task_id, terminate=True)
@@ -169,6 +178,7 @@ class CeleryWorkerAdmin(admin.ModelAdmin):
     readonly_fields = ["hostname", "last_heartbeat", "created_at"]
 
     def status_display(self, obj):
+    """Improved documentation for status_display."""
         if obj.is_active:
             return format_html('<span style="color: green;">● Online</span>')
         return format_html('<span style="color: red;">● Offline</span>')
@@ -178,6 +188,7 @@ class CeleryWorkerAdmin(admin.ModelAdmin):
     actions = ["update_workers_status"]
 
     def update_workers_status(self, request, queryset):
+    """Improved documentation for update_workers_status."""
         if CeleryWorker.update_workers_status():
             self.message_user(request, "Status dos workers atualizado!")
         else:
@@ -207,6 +218,7 @@ class CeleryTaskTemplateAdmin(admin.ModelAdmin):
     )
 
     def execute_action(self, obj):
+    """Improved documentation for execute_action."""
         return format_html(
             '<a href="/admin/facebook_integration/celerytasktemplate/{}/execute/" '
             'class="button" style="background: green; color: white;">Executar</a>',
@@ -216,6 +228,7 @@ class CeleryTaskTemplateAdmin(admin.ModelAdmin):
     execute_action.short_description = "Executar"
 
     def get_urls(self):
+    """Improved documentation for get_urls."""
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -227,6 +240,7 @@ class CeleryTaskTemplateAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def execute_template(self, request, template_id):
+    """Improved documentation for execute_template."""
         try:
             template = CeleryTaskTemplate.objects.get(pk=template_id)
             task = template.execute()
@@ -244,6 +258,7 @@ class CeleryTaskTemplateAdmin(admin.ModelAdmin):
     actions = ["execute_selected_templates"]
 
     def execute_selected_templates(self, request, queryset):
+    """Improved documentation for execute_selected_templates."""
         executed = 0
         for template in queryset.filter(is_active=True):
             if template.execute():

@@ -64,6 +64,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - GOOGLE_APPLICATION_CREDENTIALS="/home/ec2-user/fb_automation/application_default_credentials.json"
     depends_on:
       db:
         condition: service_healthy

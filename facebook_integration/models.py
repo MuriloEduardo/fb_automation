@@ -203,8 +203,38 @@ class PublishedPost(models.Model):
 class AIConfiguration(models.Model):
     """Model para configurações da IA"""
 
+    PROVIDER_CHOICES = [
+        ("openai", "OpenAI"),
+        ("gemini", "Google Gemini"),
+    ]
+
+    OPENAI_MODELS = [
+        ("gpt-4o", "GPT-4o"),
+        ("gpt-4o-mini", "GPT-4o Mini"),
+        ("gpt-4-turbo", "GPT-4 Turbo"),
+        ("gpt-4", "GPT-4"),
+        ("gpt-3.5-turbo", "GPT-3.5 Turbo"),
+        ("o1", "O1"),
+        ("o1-mini", "O1 Mini"),
+    ]
+
+    GEMINI_MODELS = [
+        ("gemini-2.5-flash", "Gemini 2.5 Flash"),
+        ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash"),
+        ("gemini-2.0-flash-exp", "Gemini 2.0 Flash (Experimental)"),
+        ("gemini-1.5-flash", "Gemini 1.5 Flash (Legacy)"),
+        ("gemini-1.5-pro", "Gemini 1.5 Pro (Legacy)"),
+    ]
+
     name = models.CharField(max_length=255, verbose_name="Nome da Configuração")
     description = models.TextField(blank=True, verbose_name="Descrição")
+    provider = models.CharField(
+        max_length=20,
+        choices=PROVIDER_CHOICES,
+        default="openai",
+        verbose_name="Provedor",
+    )
     model = models.CharField(
         max_length=100, default="gpt-3.5-turbo", verbose_name="Modelo da IA"
     )

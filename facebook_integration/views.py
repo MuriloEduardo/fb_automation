@@ -17,8 +17,12 @@ from .models import (
     PublishedPost,
     AIConfiguration,
 )
+from .services.image_prompt_generation import (
+    generate_image_prompt_with_fallback,
+)
+from .services.openai_service import OpenAIService
+from .services.text_generation import generate_text_with_fallback
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
-from .services.openai_service import OpenAIService, OpenAIServiceException
 
 logger = logging.getLogger(__name__)
 
@@ -251,18 +255,15 @@ def generate_content_preview(request):
                     {"success": False, "error": "Template ou prompt é obrigatório"}
                 )
 
-            # Gera conteúdo usando OpenAI
-            openai_service = OpenAIService()
-            content = openai_service.generate_post_content(final_prompt, context_data)
+            content = generate_text_with_fallback(final_prompt, context_data)
 
-            # Gera prompt para imagem
-            image_prompt = openai_service.generate_image_prompt(content)
+            image_prompt = generate_image_prompt_with_fallback(content)
 
             return JsonResponse(
                 {"success": True, "content": content, "image_prompt": image_prompt}
             )
 
-        except (OpenAIServiceException, ValueError) as e:
+        except (ValueError, RuntimeError) as e:
             return JsonResponse({"success": False, "error": str(e)})
 
     return JsonResponse({"success": False, "error": "Método não permitido"})
@@ -317,9 +318,7 @@ def generate_intelligent_content(request):
             # Gerar prompt inteligente baseado no contexto
             intelligent_prompt = _build_intelligent_prompt(context, template_id)
 
-            # Gerar conteúdo usando OpenAI
-            openai_service = OpenAIService()
-            content = openai_service.generate_post_content(intelligent_prompt, context)
+            content = generate_text_with_fallback(intelligent_prompt, context)
 
             return JsonResponse(
                 {"success": True, "content": content, "context_used": context}
@@ -348,8 +347,7 @@ def generate_image(request):
                     {"success": False, "error": "Conteúdo é obrigatório"}
                 )
 
-            openai_service = OpenAIService()
-            image_prompt = openai_service.generate_image_prompt(content)
+            image_prompt = generate_image_prompt_with_fallback(content)
 
             if not image_prompt:
                 return JsonResponse(

@@ -182,7 +182,8 @@ FACEBOOK_PAGE_ID = config("FACEBOOK_PAGE_ID", default="")
 # OpenAI API Settings
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
 
-# Google Cloud / Gemini (Vertex) settings
+# Google Cloud / Gemini settings
+GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
 GOOGLE_CLOUD_PROJECT = config("GOOGLE_CLOUD_PROJECT", default="")
 GOOGLE_CLOUD_LOCATION = config("GOOGLE_CLOUD_LOCATION", default="us-central1")
 

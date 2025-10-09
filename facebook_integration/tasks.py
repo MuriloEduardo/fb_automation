@@ -9,10 +9,12 @@ from django.utils import timezone
 from django.contrib.auth.models import User
 
 from tasks.models import CeleryTask
-from .services.facebook_api import FacebookAPIClient, FacebookAPIException
-from .services.openai_service import OpenAIService, OpenAIServiceException
+from .services.openai_service import OpenAIService
+from .services.text_generation import generate_text_with_fallback
 from .services.image_generation import generate_image_with_fallback
+from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
+from .services.image_prompt_generation import generate_image_prompt_with_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +77,6 @@ def generate_content_for_post(self, post_id):
         post.status = "generating"
         post.save()
 
-        # Gera conteúdo usando OpenAI
-        openai_service = OpenAIService()
-
         # Contexto baseado na página e template
         context = {
             "page_name": post.facebook_page.name,
@@ -90,11 +89,11 @@ def generate_content_for_post(self, post_id):
             post.template.prompt if post.template else (post.content or "Post")
         )
 
-        # Gera conteúdo
-        content = openai_service.generate_post_content(base_prompt, context)
+        # Gera conteúdo com fallback entre provedores
+        content = generate_text_with_fallback(base_prompt, context)
 
-        # Gera prompt para imagem (opcional)
-        image_prompt = openai_service.generate_image_prompt(content)
+        # Gera prompt para imagem (opcional) com fallback
+        image_prompt = generate_image_prompt_with_fallback(content)
 
         # Salva o conteúdo gerado
         post.generated_content = content
@@ -111,6 +110,12 @@ def generate_content_for_post(self, post_id):
 
     except OpenAIServiceException as e:
         logger.error(f"Erro na IA para post {post_id}: {e}")
+        post.status = "failed"
+        post.error_message = f"Erro na IA: {str(e)}"
+        post.save()
+        return f"Erro na IA para post {post_id}"
+    except Exception as e:
+        logger.error(f"Erro na geração de conteúdo para post {post_id}: {e}")
         post.status = "failed"
         post.error_message = f"Erro na IA: {str(e)}"
         post.save()
@@ -136,9 +141,7 @@ def publish_post_task(post_id):
         image_path = None
         try:
             if post.generated_image_prompt:
-                image_path = generate_image_with_fallback(
-                    post.generated_image_prompt
-                )
+                image_path = generate_image_with_fallback(post.generated_image_prompt)
                 # Persistir caminho no post (relativo à MEDIA_ROOT)
                 if image_path and str(settings.MEDIA_ROOT) in image_path:
                     rel_path = os.path.relpath(
@@ -147,9 +150,7 @@ def publish_post_task(post_id):
                     post.generated_image_file = rel_path
                     post.save(update_fields=["generated_image_file"])
         except Exception as img_err:
-            logger.warning(
-                f"Falha ao gerar imagem para post {post_id}: {img_err}"
-            )
+            logger.warning(f"Falha ao gerar imagem para post {post_id}: {img_err}")
 
         # Publica o post (com imagem se disponível)
         if image_path:
@@ -157,9 +158,7 @@ def publish_post_task(post_id):
                 message=post.generated_content, image_path=image_path
             )
         else:
-            result = facebook_client.create_post(
-                message=post.generated_content
-            )
+            result = facebook_client.create_post(message=post.generated_content)
 
         # Extrai informações do resultado
         facebook_post_id = str(result.get("id") or "")
@@ -187,9 +186,7 @@ def publish_post_task(post_id):
             facebook_post_url=fb_url,
         )
 
-        logger.info(
-            f"Post {post_id} publicado com sucesso: {facebook_post_id}"
-        )
+        logger.info(f"Post {post_id} publicado com sucesso: {facebook_post_id}")
         return f"Post {post_id} publicado: {facebook_post_id}"
 
     except ScheduledPost.DoesNotExist:
@@ -236,27 +233,21 @@ def update_post_metrics():
 
             # Atualiza métricas
             published_post.likes_count = (
-                post_details.get("likes", {})
-                .get("summary", {})
-                .get("total_count", 0)
+                post_details.get("likes", {}).get("summary", {}).get("total_count", 0)
             )
             published_post.comments_count = (
                 post_details.get("comments", {})
                 .get("summary", {})
                 .get("total_count", 0)
             )
-            published_post.shares_count = post_details.get("shares", {}).get(
-                "count", 0
-            )
+            published_post.shares_count = post_details.get("shares", {}).get("count", 0)
             published_post.metrics_updated_at = timezone.now()
             published_post.save()
 
             updated_count += 1
 
         except Exception as e:
-            logger.error(
-                f"Erro ao atualizar métricas do post {published_post.id}: {e}"
-            )
+            logger.error(f"Erro ao atualizar métricas do post {published_post.id}: {e}")
             continue
 
     return f"Métricas atualizadas para {updated_count} posts"
@@ -464,6 +455,7 @@ def schedule_multiple_posts(
     user_id,
     template_id=None,
     use_markdown=False,
+    image_path=None,
 ):
     """
     Task para agendar posts em múltiplas páginas
@@ -510,6 +502,10 @@ def schedule_multiple_posts(
                 use_markdown=use_markdown,
                 status="pending",
             )
+
+            if image_path:
+                scheduled_post.generated_image_file = image_path
+                scheduled_post.save(update_fields=["generated_image_file"])
 
             results["success"].append(
                 {
@@ -681,13 +677,13 @@ def auto_generate_and_post_content(self):
             # Gerar prompt inteligente
             intelligent_prompt = _build_intelligent_prompt_for_task(context)
 
-            # Gerar conteúdo usando OpenAI
-            openai_service = OpenAIService()
-            content = openai_service.generate_post_content(intelligent_prompt, context)
+            # Gerar conteúdo com fallback entre provedores
+            content = generate_text_with_fallback(intelligent_prompt, context)
 
             # Tentar gerar imagem para o conteúdo
             image_path = None
             try:
+                openai_service = OpenAIService()
                 image_prompt = openai_service.generate_image_prompt(content)
                 if image_prompt:
                     image_path = generate_image_with_fallback(image_prompt)

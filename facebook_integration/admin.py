@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from django import forms
 from .models import (
     FacebookPage,
     PostTemplate,
@@ -252,16 +253,81 @@ class PublishedPostAdmin(admin.ModelAdmin):
     image_preview.short_description = "Pré-visualização"
 
 
+class AIConfigurationForm(forms.ModelForm):
+    """
+    Custom form for AIConfiguration with dynamic model choices
+    based on selected provider.
+    """
+
+    class Meta:
+        model = AIConfiguration
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Add help text for provider field
+        self.fields["provider"].help_text = (
+            "Selecione o provedor de IA: OpenAI ou Google Gemini"
+        )
+
+        # Add help text for model field with available models
+        openai_models = ", ".join(
+            [name for code, name in AIConfiguration.OPENAI_MODELS]
+        )
+        gemini_models = ", ".join(
+            [name for code, name in AIConfiguration.GEMINI_MODELS]
+        )
+
+        self.fields["model"].help_text = (
+            f"<strong>Modelos OpenAI:</strong> {openai_models}<br>"
+            f"<strong>Modelos Gemini:</strong> {gemini_models}"
+        )
+
+        # Add widget attributes for better UX
+        self.fields["provider"].widget.attrs.update(
+            {"class": "provider-select", "onchange": "updateModelHelpText(this.value)"}
+        )
+
+
 @admin.register(AIConfiguration)
 class AIConfigurationAdmin(admin.ModelAdmin):
+    form = AIConfigurationForm
     list_display = [
         "name",
+        "provider",
         "model",
         "temperature",
         "max_tokens",
         "is_default",
         "created_at",
     ]
-    list_filter = ["model", "is_default", "created_at"]
-    search_fields = ["name"]
+    list_filter = ["provider", "is_default", "created_at"]
+    search_fields = ["name", "model"]
     readonly_fields = ["created_at", "updated_at"]
+
+    fieldsets = (
+        (
+            "Informações Básicas",
+            {"fields": ("name", "description", "is_default")},
+        ),
+        (
+            "Provedor e Modelo",
+            {"fields": ("provider", "model")},
+        ),
+        (
+            "Parâmetros de Geração",
+            {"fields": ("max_tokens", "temperature")},
+        ),
+        (
+            "Configurações de Posts",
+            {"fields": ("include_hashtags", "max_hashtags", "include_emojis")},
+        ),
+        (
+            "Metadados",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )

@@ -1,0 +1,87 @@
+{% extends 'facebook_integration/base.html' %}
+
+{% block title %}
+  Posts - Facebook Automation
+{% endblock %}
+{% block page_title %}
+  Posts
+{% endblock %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <p class="text-muted">Veja seus posts publicados, agendados e crie novos</p>
+    </div>
+    <div class="d-flex gap-3">
+      <a href="{% url 'facebook_integration:post_templates' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-file-text"></i> Templates
+      </a>
+      <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Novo Post
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-7 mb-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Publicados Recentes</h5>
+            <a class="small" href="{% url 'facebook_integration:published_posts' %}">Ver todos</a>
+          </div>
+          <div class="row">
+            {% for post in published %}
+              <div class="col-md-6 mb-3">
+                <div class="border rounded p-2 h-100">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <strong class="small">{{ post.facebook_page.name }}</strong>
+                    <span class="badge bg-success">Publicado</span>
+                  </div>
+                  {% if post.image_file %}
+                    <img src="{{ post.image_file.url }}" class="img-fluid rounded mb-2" alt="Imagem do post"/>
+                  {% endif %}
+                  <div class="small">{{ post.content|truncatewords:18 }}</div>
+                  <div class="text-muted small mt-2">
+                    <i class="bi bi-calendar"></i>
+                    {{ post.published_at|date:'d/m/Y H:i' }}
+                  </div>
+                </div>
+              </div>
+            {% empty %}
+              <div class="col-12 text-center text-muted py-4">Nenhum post publicado ainda</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5 mb-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Agendados Próximos</h5>
+            <a class="small" href="{% url 'facebook_integration:scheduled_posts' %}">Ver todos</a>
+          </div>
+          <div class="list-group list-group-flush">
+            {% for sp in scheduled %}
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="small fw-bold">{{ sp.facebook_page.name }}</div>
+                    <div class="small text-muted">{{ sp.content|default:sp.generated_content|truncatewords:15 }}</div>
+                  </div>
+                  <span class="badge bg-{% if sp.status == 'pending' %}warning{% elif sp.status == 'ready' %}info{% else %}secondary{% endif %}">{{ sp.get_status_display }}</span>
+                </div>
+                <div class="small text-muted mt-1">
+                  <i class="bi bi-clock"></i> {{ sp.scheduled_time|date:'d/m/Y H:i' }}
+                </div>
+              </div>
+            {% empty %}
+              <div class="list-group-item text-center text-muted">Nenhum agendamento futuro</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

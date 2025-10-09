@@ -1,5 +1,8 @@
+import os
+import base64
 import openai
 import logging
+from uuid import uuid4
 from typing import Dict, Any, Optional
 from django.conf import settings
 from ..models import AIConfiguration
@@ -10,7 +13,7 @@ logger = logging.getLogger(__name__)
 class OpenAIService:
     """Serviço para integração com OpenAI API"""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.OPENAI_API_KEY
         if not self.api_key:
             raise ValueError("OpenAI API key não configurada")
@@ -39,7 +42,7 @@ class OpenAIService:
     def generate_post_content(
         self,
         prompt: str,
-        context: Dict[str, Any] = None,
+        context: Optional[Dict[str, Any]] = None,
         ai_config: AIConfiguration = None,
     ) -> str:
         """Gera conteúdo para post usando OpenAI"""
@@ -62,7 +65,7 @@ class OpenAIService:
                 n=1,
             )
 
-            content = response.choices[0].message.content.strip()
+            content = (response.choices[0].message.content or "").strip()
             logger.info(f"Conteúdo gerado com sucesso usando {ai_config.model}")
             return content
 
@@ -71,27 +74,33 @@ class OpenAIService:
             raise OpenAIServiceException(f"Erro na geração de conteúdo: {str(e)}")
 
     def generate_image_prompt(
-        self, post_content: str, ai_config: AIConfiguration = None
+        self, post_content: str, ai_config: Optional[AIConfiguration] = None
     ) -> str:
         """Gera um prompt para criação de imagem baseado no conteúdo do post"""
         if not ai_config:
             ai_config = self._get_ai_config()
 
-        system_prompt = """Você é um especialista em criação de prompts para geração de imagens.
-        Baseado no conteúdo de um post de rede social, crie um prompt detalhado para gerar uma 
-        imagem que complemente o post. O prompt deve ser em inglês, descritivo e específico."""
+        system_prompt = (
+            "Você é um especialista em criação de prompts para "
+            "geração de imagens.\n"
+            "Baseado no conteúdo de um post de rede social, crie um "
+            "prompt detalhado para gerar uma imagem que complemente o "
+            "post. O prompt deve ser em inglês, descritivo e "
+            "específico."
+        )
 
-        user_prompt = f"""Baseado neste conteúdo de post:
-        "{post_content}"
-        
-        Crie um prompt em inglês para gerar uma imagem que complemente este post.
-        O prompt deve ser conciso (máximo 100 palavras) e incluir:
-        - Estilo visual apropriado
-        - Cores sugeridas
-        - Elementos visuais relevantes
-        - Atmosfera desejada
-        
-        Retorne apenas o prompt da imagem, sem explicações adicionais."""
+        user_prompt = (
+            "Baseado neste conteúdo de post:\n"
+            f'"{post_content}"\n\n'
+            "Crie um prompt em inglês para gerar uma imagem que "
+            "complemente este post.\n"
+            "O prompt deve ser conciso (máximo 100 palavras) e incluir:\n"
+            "- Estilo visual apropriado\n"
+            "- Cores sugeridas\n"
+            "- Elementos visuais relevantes\n"
+            "- Atmosfera desejada\n\n"
+            "Retorne apenas o prompt da imagem, sem explicações adicionais."
+        )
 
         try:
             response = self.client.chat.completions.create(
@@ -105,7 +114,7 @@ class OpenAIService:
                 n=1,
             )
 
-            image_prompt = response.choices[0].message.content.strip()
+            image_prompt = (response.choices[0].message.content or "").strip()
             logger.info("Prompt de imagem gerado com sucesso")
             return image_prompt
 
@@ -115,31 +124,37 @@ class OpenAIService:
 
     def _build_system_prompt(self, ai_config: AIConfiguration) -> str:
         """Constrói o prompt do sistema baseado na configuração"""
-        base_prompt = """Você é um especialista em marketing digital e criação de conteúdo para redes sociais.
-        Sua tarefa é criar posts envolventes, autênticos e adequados para o Facebook.
-        
-        Diretrizes:
-        - Use uma linguagem natural e envolvente
-        - Mantenha o tom profissional mas acessível
-        - Evite excesso de jargões técnicos
-        - Foque em valor para o leitor"""
+        base_prompt = (
+            "Você é um especialista em marketing digital e criação de "
+            "conteúdo para redes sociais.\n"
+            "Sua tarefa é criar posts envolventes, autênticos e "
+            "adequados para o Facebook.\n\n"
+            "Diretrizes:\n"
+            "- Use uma linguagem natural e envolvente\n"
+            "- Mantenha o tom profissional mas acessível\n"
+            "- Evite excesso de jargões técnicos\n"
+            "- Foque em valor para o leitor"
+        )
 
         if ai_config.include_emojis:
             base_prompt += "\n- Use emojis de forma moderada e apropriada"
 
         if ai_config.include_hashtags:
             base_prompt += (
-                f"\n- Inclua no máximo {ai_config.max_hashtags} hashtags relevantes"
+                "\n- Inclua no máximo " f"{ai_config.max_hashtags} hashtags relevantes"
             )
 
         base_prompt += (
-            "\n\nRetorne apenas o conteúdo do post, sem explicações adicionais."
+            "\n\nRetorne apenas o conteúdo do post, sem " "explicações adicionais."
         )
 
         return base_prompt
 
     def _build_user_prompt(
-        self, prompt: str, context: Dict[str, Any], ai_config: AIConfiguration
+        self,
+        prompt: str,
+        context: Optional[Dict[str, Any]],
+        ai_config: AIConfiguration,
     ) -> str:
         """Constrói o prompt do usuário com contexto adicional"""
         user_prompt = f"Crie um post para Facebook baseado neste tema:\n{prompt}"
@@ -161,16 +176,68 @@ class OpenAIService:
             requirements.append("Use emojis apropriados")
 
         if requirements:
-            user_prompt += f"\n\nRequisitos:\n" + "\n".join(
+            user_prompt += "\n\nRequisitos:\n" + "\n".join(
                 f"- {req}" for req in requirements
             )
 
         return user_prompt
 
+    def generate_image_file(
+        self,
+        image_prompt: str,
+        *,
+        size: str = "1024x1024",
+        image_format: str = "png",
+        subdir: str = "generated_images",
+        model: str = "gpt-image-1",
+    ) -> Optional[str]:
+        """Gera uma imagem usando a OpenAI Images API, salva em MEDIA_ROOT e
+        retorna o caminho do arquivo. Retorna None se a geração falhar."""
+        if not image_prompt:
+            return None
+
+        try:
+            # Geração da imagem (retorno base64)
+            response = self.client.images.generate(
+                model=model,
+                prompt=image_prompt,
+                response_format="b64_json",
+            )
+
+            data_list = getattr(response, "data", None)
+            if not data_list or len(data_list) == 0:
+                logger.error("Resposta de imagem sem dados da OpenAI")
+                return None
+
+            first_item = data_list[0]
+            b64 = getattr(first_item, "b64_json", None)
+            if not b64:
+                logger.error("Resposta de imagem vazia da OpenAI")
+                return None
+
+            # Preparar diretório em MEDIA_ROOT
+            media_root = str(settings.MEDIA_ROOT)
+            out_dir = os.path.join(media_root, subdir)
+            os.makedirs(out_dir, exist_ok=True)
+
+            filename = f"{uuid4().hex}.{image_format}"
+            out_path = os.path.join(out_dir, filename)
+
+            # Salvar arquivo
+            with open(out_path, "wb") as f:
+                f.write(base64.b64decode(b64))
+
+            logger.info(f"Imagem gerada e salva em: {out_path}")
+            return out_path
+
+        except Exception as e:
+            logger.error(f"Erro ao gerar imagem com OpenAI: {e}")
+            return None
+
     def test_connection(self) -> bool:
         """Testa a conexão com a API da OpenAI"""
         try:
-            response = self.client.chat.completions.create(
+            self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": "Teste"}],
                 max_tokens=10,

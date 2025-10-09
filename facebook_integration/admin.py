@@ -125,6 +125,7 @@ class ScheduledPostAdmin(admin.ModelAdmin):
     list_display = [
         "facebook_page",
         "status",
+        "image_thumb",
         "scheduled_time",
         "created_by",
         "created_at",
@@ -134,10 +135,63 @@ class ScheduledPostAdmin(admin.ModelAdmin):
     readonly_fields = [
         "facebook_post_id",
         "facebook_post_url",
+        "image_preview",
         "created_at",
         "updated_at",
     ]
     date_hierarchy = "scheduled_time"
+
+    fieldsets = (
+        (
+            "Conteúdo",
+            {
+                "fields": (
+                    "facebook_page",
+                    "template",
+                    "status",
+                    "content",
+                    "generated_content",
+                    "generated_image_prompt",
+                    "generated_image_file",
+                    "image_preview",
+                    "use_markdown",
+                )
+            },
+        ),
+        (
+            "Agendamento",
+            {"fields": ("scheduled_time",)},
+        ),
+        (
+            "Facebook",
+            {"fields": ("facebook_post_id", "facebook_post_url")},
+        ),
+        (
+            "Metadados",
+            {"fields": ("created_by", "created_at", "updated_at")},
+        ),
+    )
+
+    def image_thumb(self, obj):
+        if obj.generated_image_file:
+            html = (
+                '<img src="{}" style="height:40px;width:auto;' 'border-radius:4px;"/>'
+            )
+            return format_html(html, obj.generated_image_file.url)
+        return "—"
+
+    image_thumb.short_description = "Imagem"
+
+    def image_preview(self, obj):
+        if obj.generated_image_file:
+            html = (
+                '<img src="{}" style="max-height:240px;width:auto;'
+                'border:1px solid #ddd;"/>'
+            )
+            return format_html(html, obj.generated_image_file.url)
+        return "—"
+
+    image_preview.short_description = "Pré-visualização"
 
 
 @admin.register(PublishedPost)
@@ -147,6 +201,7 @@ class PublishedPostAdmin(admin.ModelAdmin):
         "published_at",
         "auto_generated_display",
         "content_type",
+        "image_thumb",
         "likes_count",
         "comments_count",
         "shares_count",
@@ -162,6 +217,7 @@ class PublishedPostAdmin(admin.ModelAdmin):
     readonly_fields = [
         "facebook_post_id",
         "facebook_post_url",
+        "image_preview",
         "published_at",
         "metrics_updated_at",
     ]
@@ -173,6 +229,27 @@ class PublishedPostAdmin(admin.ModelAdmin):
         return format_html('<span style="color: green;">👤</span> Manual')
 
     auto_generated_display.short_description = "Origem"
+
+    def image_thumb(self, obj):
+        if obj.image_file:
+            html = (
+                '<img src="{}" style="height:40px;width:auto;' 'border-radius:4px;"/>'
+            )
+            return format_html(html, obj.image_file.url)
+        return "—"
+
+    image_thumb.short_description = "Imagem"
+
+    def image_preview(self, obj):
+        if obj.image_file:
+            html = (
+                '<img src="{}" style="max-height:240px;width:auto;'
+                'border:1px solid #ddd;"/>'
+            )
+            return format_html(html, obj.image_file.url)
+        return "—"
+
+    image_preview.short_description = "Pré-visualização"
 
 
 @admin.register(AIConfiguration)

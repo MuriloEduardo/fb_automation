@@ -32,6 +32,7 @@
     </style>
 
     {% block extra_css %}
+
     {% endblock %}
   </head>
   <body>
@@ -53,27 +54,15 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a href="{% url 'facebook_integration:facebook_pages' %}" class="nav-link {% if request.resolver_match.url_name == 'facebook_pages' %}active{% endif %}">
-                  <i class="bi bi-facebook me-2"></i>
+                <a href="{% url 'facebook_integration:facebook_pages' %}" class="nav-link {% if request.resolver_match.url_name == 'page_manager' %}active{% endif %}">
+                  <i class="bi bi-file-earmark me-2"></i>
                   Páginas
                 </a>
               </li>
               <li class="nav-item">
-                <a href="{% url 'facebook_integration:post_templates' %}" class="nav-link {% if request.resolver_match.url_name == 'post_templates' %}active{% endif %}">
-                  <i class="bi bi-file-text me-2"></i>
-                  Templates
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="{% url 'facebook_integration:scheduled_posts' %}" class="nav-link {% if request.resolver_match.url_name == 'scheduled_posts' %}active{% endif %}">
-                  <i class="bi bi-calendar-event me-2"></i>
-                  Agendados
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="{% url 'facebook_integration:published_posts' %}" class="nav-link {% if request.resolver_match.url_name == 'published_posts' %}active{% endif %}">
-                  <i class="bi bi-check-circle me-2"></i>
-                  Publicados
+                <a href="{% url 'facebook_integration:posts' %}" class="nav-link {% if request.resolver_match.url_name == 'posts' %}active{% endif %}">
+                  <i class="bi bi-card-text me-2"></i>
+                  Posts
                 </a>
               </li>
               <li class="nav-item">
@@ -87,7 +76,7 @@
             <hr />
 
             <div class="dropdown">
-              <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" id="dropdownUser" data-bs-toggle="dropdown">
+              <a href="#" class="text-capitalize d-flex align-items-center text-decoration-none dropdown-toggle px-3" id="dropdownUser" data-bs-toggle="dropdown">
                 <i class="bi bi-person-circle me-2"></i>
                 {% if user.is_authenticated %}
                   {{ user.username }}
@@ -121,6 +110,7 @@
           <div class="pt-3 pb-2 mb-3 border-bottom">
             <h1 class="h2">
               {% block page_title %}
+
               {% endblock %}
             </h1>
           </div>
@@ -136,6 +126,7 @@
           {% endif %}
 
           {% block content %}
+
           {% endblock %}
         </div>
       </div>
@@ -146,6 +137,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
     {% block extra_js %}
+
     {% endblock %}
   </body>
 </html>

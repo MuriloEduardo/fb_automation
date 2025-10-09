@@ -57,6 +57,7 @@ urlpatterns = [
     path("task-status/<str:task_id>/", views.task_status, name="task_status"),
     # Published Posts
     path("published/", views.published_posts, name="published_posts"),
+    path("posts/", views.posts, name="posts"),
     # AI Configurations
     path("ai-config/", views.ai_configurations, name="ai_configurations"),
     path(

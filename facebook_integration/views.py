@@ -423,6 +423,21 @@ def published_posts(request):
 
 
 @login_required
+def posts(request):
+    """Página unificada de posts: publicados e agendados, com ações."""
+    published = PublishedPost.objects.order_by("-published_at")[:12]
+    scheduled = ScheduledPost.objects.filter(status__in=["pending", "ready"]).order_by(
+        "scheduled_time"
+    )[:12]
+
+    context = {
+        "published": published,
+        "scheduled": scheduled,
+    }
+    return render(request, "facebook_integration/posts.html", context)
+
+
+@login_required
 def ai_configurations(request):
     """Gerencia configurações de IA"""
     configs = AIConfiguration.objects.all().order_by("-created_at")

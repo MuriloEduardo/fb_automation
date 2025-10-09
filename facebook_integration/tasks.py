@@ -1,13 +1,14 @@
+import os
 import re
 import logging
 from random import choice
 from datetime import datetime
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone
 from django.contrib.auth.models import User
 
 from tasks.models import CeleryTask
-from django.contrib.auth.models import User
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .services.openai_service import OpenAIService, OpenAIServiceException
 from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
@@ -79,12 +80,17 @@ def generate_content_for_post(self, post_id):
         # Contexto baseado na página e template
         context = {
             "page_name": post.facebook_page.name,
-            "category": post.template.category,
+            "category": getattr(post.template, "category", ""),
             "current_time": timezone.now().strftime("%Y-%m-%d %H:%M"),
         }
 
+        # Prompt base: template, conteúdo manual, ou fallback
+        base_prompt = (
+            post.template.prompt if post.template else (post.content or "Post")
+        )
+
         # Gera conteúdo
-        content = openai_service.generate_post_content(post.template.prompt, context)
+        content = openai_service.generate_post_content(base_prompt, context)
 
         # Gera prompt para imagem (opcional)
         image_prompt = openai_service.generate_image_prompt(content)
@@ -125,12 +131,38 @@ def publish_post_task(post_id):
             page_id=post.facebook_page.page_id,
         )
 
-        # Publica o post
-        result = facebook_client.create_post(message=post.generated_content)
+        # Opcional: gerar imagem a partir do prompt, se existir
+        image_path = None
+        try:
+            if post.generated_image_prompt:
+                openai_service = OpenAIService()
+                image_path = openai_service.generate_image_file(
+                    post.generated_image_prompt
+                )
+                # Persistir caminho no post (relativo à MEDIA_ROOT)
+                if image_path and str(settings.MEDIA_ROOT) in image_path:
+                    rel_path = os.path.relpath(
+                        image_path, start=str(settings.MEDIA_ROOT)
+                    )
+                    post.generated_image_file = rel_path
+                    post.save(update_fields=["generated_image_file"])
+        except Exception as img_err:
+            logger.warning(f"Falha ao gerar imagem para post {post_id}: {img_err}")
+
+        # Publica o post (com imagem se disponível)
+        if image_path:
+            result = facebook_client.create_post(
+                message=post.generated_content, image_path=image_path
+            )
+        else:
+            result = facebook_client.create_post(message=post.generated_content)
 
         # Extrai informações do resultado
-        facebook_post_id = result.get("id")
-        facebook_post_url = f"https://facebook.com/{facebook_post_id}"
+        facebook_post_id = str(result.get("id") or "")
+        if facebook_post_id:
+            facebook_post_url = f"https://facebook.com/{facebook_post_id}"
+        else:
+            facebook_post_url = ""
 
         # Atualiza o post agendado
         post.status = "published"
@@ -139,12 +171,16 @@ def publish_post_task(post_id):
         post.save()
 
         # Cria registro do post publicado
+        if facebook_post_id:
+            fb_url = f"https://facebook.com/{facebook_post_id}"
+        else:
+            fb_url = ""
         PublishedPost.objects.create(
             facebook_page=post.facebook_page,
             scheduled_post=post,
             facebook_post_id=facebook_post_id,
             content=post.generated_content or post.content,
-            facebook_post_url=f"https://facebook.com/{facebook_post_id}",
+            facebook_post_url=fb_url,
         )
 
         logger.info(f"Post {post_id} publicado com sucesso: {facebook_post_id}")
@@ -313,7 +349,7 @@ def publish_to_multiple_pages(
                 meta={
                     "current": i + 1,
                     "total": len(page_ids),
-                    "status": f"Publicando na página {i + 1} de {len(page_ids)}",
+                    "status": (f"Publicando na página {i + 1} de {len(page_ids)}"),
                 },
             )
 
@@ -336,7 +372,9 @@ def publish_to_multiple_pages(
                 post_response = api_client.create_post(processed_content)
             except Exception as api_error:
                 logger.error(
-                    f"Erro na API do Facebook para página {page.page_id}: {str(api_error)}"
+                    "Erro na API do Facebook para página %s: %s",
+                    page.page_id,
+                    str(api_error),
                 )
                 results["failed"].append(
                     {
@@ -352,7 +390,7 @@ def publish_to_multiple_pages(
                 facebook_page=page,
                 content=processed_content,
                 facebook_post_id=post_response.get("id"),
-                facebook_post_url=f"https://facebook.com/{post_response.get('id')}",
+                facebook_post_url=(f"https://facebook.com/{post_response.get('id')}"),
             )
 
             results["success"].append(
@@ -376,7 +414,7 @@ def publish_to_multiple_pages(
             results["failed"].append(
                 {
                     "page_id": page_id,
-                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "page_name": (page.name if "page" in locals() else "Desconhecida"),
                     "error": f"Erro na API do Facebook: {str(e)}",
                 }
             )
@@ -385,7 +423,7 @@ def publish_to_multiple_pages(
             results["failed"].append(
                 {
                     "page_id": page_id,
-                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "page_name": (page.name if "page" in locals() else "Desconhecida"),
                     "error": f"Erro interno: {str(e)}",
                 }
             )
@@ -434,7 +472,7 @@ def schedule_multiple_posts(
                 meta={
                     "current": i + 1,
                     "total": len(page_ids),
-                    "status": f"Agendando para página {i + 1} de {len(page_ids)}",
+                    "status": (f"Agendando para página {i + 1} de {len(page_ids)}"),
                 },
             )
 
@@ -472,7 +510,7 @@ def schedule_multiple_posts(
             results["failed"].append(
                 {
                     "page_id": page_id,
-                    "page_name": page.name if "page" in locals() else "Desconhecida",
+                    "page_name": (page.name if "page" in locals() else "Desconhecida"),
                     "error": f"Erro interno: {str(e)}",
                 }
             )
@@ -493,7 +531,18 @@ def convert_html_to_facebook_text(content):
     text = content
 
     # Processar markdown básico se detectado
-    if any(marker in content for marker in ["**", "*", "#", "`", "- ", "1. ", "---"]):
+    if any(
+        marker in content
+        for marker in [
+            "**",
+            "*",
+            "#",
+            "`",
+            "- ",
+            "1. ",
+            "---",
+        ]
+    ):
         text = process_simple_markdown(text)
 
     # Limpar espaços extras e normalizar quebras de linha
@@ -614,12 +663,28 @@ def auto_generate_and_post_content(self):
             openai_service = OpenAIService()
             content = openai_service.generate_post_content(intelligent_prompt, context)
 
+            # Tentar gerar imagem para o conteúdo
+            image_path = None
+            try:
+                image_prompt = openai_service.generate_image_prompt(content)
+                if image_prompt:
+                    image_path = openai_service.generate_image_file(image_prompt)
+            except Exception as e:
+                logger.warning(
+                    f"Falha ao gerar imagem para página {page.name}: {str(e)}"
+                )
+
             # Publicar diretamente no Facebook
             facebook_client = FacebookAPIClient(
                 access_token=page.access_token, page_id=page.page_id
             )
 
-            post_result = facebook_client.create_post(message=content)
+            if image_path:
+                post_result = facebook_client.create_post(
+                    message=content, image_path=image_path
+                )
+            else:
+                post_result = facebook_client.create_post(message=content)
 
             # Salvar como post publicado
             published_post = PublishedPost.objects.create(
@@ -633,17 +698,25 @@ def auto_generate_and_post_content(self):
                 content_tone=content_tone,
             )
 
+            # Se geramos imagem, salvar caminho relativo no PublishedPost
+            if image_path and str(settings.MEDIA_ROOT) in image_path:
+                rel_path = os.path.relpath(image_path, start=str(settings.MEDIA_ROOT))
+                published_post.image_file = rel_path
+                published_post.save(update_fields=["image_file"])
+
             results.append(
                 {
                     "page": page.name,
                     "status": "success",
-                    "post_id": published_post.id,
-                    "facebook_id": post_result.get("id"),
+                    "post_id": str(published_post.pk),
+                    "facebook_id": str(post_result.get("id")),
                 }
             )
 
             logger.info(
-                f"Post automático criado para {page.name}: {post_result.get('id')}"
+                "Post automático criado para %s: %s",
+                page.name,
+                post_result.get("id"),
             )
 
         except Exception as e:
@@ -655,7 +728,9 @@ def auto_generate_and_post_content(self):
     error_count = len([r for r in results if r["status"] == "error"])
 
     logger.info(
-        f"Geração automática concluída: {success_count} sucessos, {error_count} erros"
+        "Geração automática concluída: %s sucessos, %s erros",
+        success_count,
+        error_count,
     )
 
     return {
@@ -700,9 +775,11 @@ def _build_intelligent_prompt_for_task(context, template_id=None):
 
     # Tipo de conteúdo
     content_descriptions = {
-        "promotional": "conteúdo promocional para gerar interesse em produtos/serviços",
+        "promotional": (
+            "conteúdo promocional para gerar interesse em produtos/serviços"
+        ),
         "informative": "conteúdo informativo e educativo para a audiência",
-        "engaging": "conteúdo envolvente para aumentar interação e engajamento",
+        "engaging": ("conteúdo envolvente para aumentar interação e engajamento"),
         "news": "conteúdo de notícias ou atualizações relevantes",
         "behind-scenes": "conteúdo de bastidores para mostrar o lado humano",
         "educational": "conteúdo educativo para ensinar algo útil",
@@ -724,21 +801,26 @@ def _build_intelligent_prompt_for_task(context, template_id=None):
     tone_desc = tone_descriptions.get(context["content_tone"], "tom apropriado")
 
     # Montar prompt final
-    prompt = f"""{base_prompt}Crie {content_desc} com {tone_desc} para Facebook.
-        Informações do contexto:
-        - {pages_info}
-        - Tipo de conteúdo: {context["content_type"]}
-        - Tom desejado: {context["content_tone"]}
-
-        Instruções específicas:
-        - O conteúdo deve ser adequado para as características da(s) página(s)
-        - Use linguagem que ressoe com o público-alvo
-        - Inclua elementos que gerem engajamento (perguntas, call-to-action)
-        - Mantenha o comprimento ideal para Facebook (100-250 palavras)
-        - Use emojis apropriados para tornar o conteúdo mais atrativo
-        - Inclua hashtags relevantes (#)
-
-        Crie um post que seja autêntico e que funcione bem para todas as páginas selecionadas.
-    """
+    prompt = (
+        f"{base_prompt}Crie {content_desc} com {tone_desc} para Facebook.\n"
+        + "Informações do contexto:\n"
+        + f"- {pages_info}\n"
+        + f"- Tipo de conteúdo: {context['content_type']}\n"
+        + f"- Tom desejado: {context['content_tone']}\n\n"
+        + "Instruções específicas:\n"
+        + (
+            "- O conteúdo deve ser adequado para as características da(s) "
+            "página(s)\n"
+        )
+        + "- Use linguagem que ressoe com o público-alvo\n"
+        + ("- Inclua elementos que gerem engajamento (perguntas, " "call-to-action)\n")
+        + "- Mantenha o comprimento ideal para Facebook (100-250 palavras)\n"
+        + "- Use emojis apropriados para tornar o conteúdo mais atrativo\n"
+        + "- Inclua hashtags relevantes (#)\n\n"
+        + (
+            "Crie um post que seja autêntico e que funcione bem para todas as "
+            "páginas selecionadas."
+        )
+    )
 
     return prompt

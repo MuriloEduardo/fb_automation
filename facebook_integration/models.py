@@ -101,6 +101,12 @@ class ScheduledPost(models.Model):
     generated_image_prompt = models.TextField(
         blank=True, verbose_name="Prompt da Imagem"
     )
+    generated_image_file = models.ImageField(
+        upload_to="generated_images/",
+        blank=True,
+        null=True,
+        verbose_name="Imagem Gerada",
+    )
 
     # Agendamento
     scheduled_time = models.DateTimeField(verbose_name="Horário Agendado")
@@ -122,7 +128,10 @@ class ScheduledPost(models.Model):
         ordering = ["-scheduled_time"]
 
     def __str__(self):
-        return f"{self.facebook_page.name} - {self.scheduled_time.strftime('%d/%m/%Y %H:%M')}"
+        return (
+            f"{self.facebook_page.name} - "
+            f"{self.scheduled_time.strftime('%d/%m/%Y %H:%M')}"
+        )
 
     @property
     def is_due(self):
@@ -141,6 +150,12 @@ class PublishedPost(models.Model):
     content = models.TextField(verbose_name="Conteúdo Publicado")
     facebook_post_id = models.CharField(max_length=100)
     facebook_post_url = models.URLField(blank=True)
+    image_file = models.ImageField(
+        upload_to="published_images/",
+        blank=True,
+        null=True,
+        verbose_name="Imagem Publicada",
+    )
 
     # Campos para posts automáticos
     auto_generated = models.BooleanField(
@@ -179,7 +194,10 @@ class PublishedPost(models.Model):
         ordering = ["-published_at"]
 
     def __str__(self):
-        return f"{self.facebook_page.name} - {self.published_at.strftime('%d/%m/%Y %H:%M')}"
+        return (
+            f"{self.facebook_page.name} - "
+            f"{self.published_at.strftime('%d/%m/%Y %H:%M')}"
+        )
 
 
 class AIConfiguration(models.Model):

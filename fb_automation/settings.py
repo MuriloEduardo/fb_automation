@@ -95,8 +95,9 @@ WSGI_APPLICATION = "fb_automation.wsgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 # Use DATABASE_URL if available (Docker), otherwise fallback to SQLite
-if config("DATABASE_URL", default=None):
-    DATABASES = {"default": dj_database_url.parse(config("DATABASE_URL"))}
+db_url = str(config("DATABASE_URL", default=""))
+if db_url:
+    DATABASES = {"default": dj_database_url.parse(db_url)}
 else:
     DATABASES = {
         "default": {
@@ -111,16 +112,28 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "MinimumLengthValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "CommonPasswordValidator"
+        ),
     },
     {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "NumericPasswordValidator"
+        ),
     },
 ]
 
@@ -168,6 +181,10 @@ FACEBOOK_PAGE_ID = config("FACEBOOK_PAGE_ID", default="")
 
 # OpenAI API Settings
 OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+
+# Google Cloud / Gemini (Vertex) settings
+GOOGLE_CLOUD_PROJECT = config("GOOGLE_CLOUD_PROJECT", default="")
+GOOGLE_CLOUD_LOCATION = config("GOOGLE_CLOUD_LOCATION", default="us-central1")
 
 # Celery Configuration (for background tasks)
 # Celery Configuration - Using Database for Development

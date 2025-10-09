@@ -80,6 +80,32 @@
               </div>
             </div>
 
+            <!-- Imagem -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">Imagem do Post</label>
+                <button type="button" class="btn btn-outline-success btn-sm" id="generate-image-btn" disabled><i class="bi bi-image"></i> Gerar Imagem</button>
+              </div>
+              <input type="hidden" id="image_path" name="image_path" />
+              <div id="image-preview" class="border rounded p-3 text-center" style="min-height: 150px; display: none;">
+                <img id="preview-img" src="" alt="Preview" class="img-fluid" style="max-height: 300px;" />
+                <div class="mt-2">
+                  <button type="button" class="btn btn-sm btn-danger" id="remove-image-btn"><i class="bi bi-trash"></i> Remover</button>
+                </div>
+              </div>
+              <div id="image-placeholder" class="border rounded p-3 text-center text-muted" style="min-height: 150px;">
+                <i class="bi bi-image" style="font-size: 3rem;"></i>
+                <p class="mt-2">Nenhuma imagem gerada</p>
+                <small>Escreva o conteúdo e clique em "Gerar Imagem"</small>
+              </div>
+              <div id="image-loading" class="border rounded p-3 text-center" style="min-height: 150px; display: none;">
+                <div class="spinner-border text-success" role="status">
+                  <span class="visually-hidden">Gerando...</span>
+                </div>
+                <p class="mt-2">Gerando imagem com IA...</p>
+              </div>
+            </div>
+
             <!-- Data e hora (apenas para agendados) -->
             <div class="mb-3" id="datetime-group" style="display: none;">
               <label for="scheduled_time" class="form-label">Data e Hora para Publicação</label>
@@ -504,6 +530,78 @@
           console.error('Erro:', error)
           alert('Erro ao gerar conteúdo com IA')
         })
+    })
+
+    // Funcionalidade de geração de imagem
+    const generateImageBtn = document.getElementById('generate-image-btn')
+    const contentTextarea = document.getElementById('content')
+    const imagePreview = document.getElementById('image-preview')
+    const imagePlaceholder = document.getElementById('image-placeholder')
+    const imageLoading = document.getElementById('image-loading')
+    const previewImg = document.getElementById('preview-img')
+    const imagePathInput = document.getElementById('image_path')
+    const removeImageBtn = document.getElementById('remove-image-btn')
+
+    contentTextarea.addEventListener('input', function () {
+      if (this.value.trim().length > 10) {
+        generateImageBtn.disabled = false
+      } else {
+        generateImageBtn.disabled = true
+      }
+    })
+
+    generateImageBtn.addEventListener('click', function () {
+      const content = contentTextarea.value.trim()
+      if (!content) {
+        alert('Digite o conteúdo do post antes de gerar a imagem')
+        return
+      }
+
+      imagePlaceholder.style.display = 'none'
+      imagePreview.style.display = 'none'
+      imageLoading.style.display = 'block'
+      generateImageBtn.disabled = true
+
+      fetch('{% url "facebook_integration:generate_image" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          content: content
+        })
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          imageLoading.style.display = 'none'
+          generateImageBtn.disabled = false
+
+          if (data.success) {
+            imagePathInput.value = data.image_path
+            previewImg.src = data.image_url
+            imagePreview.style.display = 'block'
+            imagePlaceholder.style.display = 'none'
+          } else {
+            alert('Erro ao gerar imagem: ' + data.error)
+            imagePlaceholder.style.display = 'block'
+          }
+        })
+        .catch((error) => {
+          imageLoading.style.display = 'none'
+          generateImageBtn.disabled = false
+          imagePlaceholder.style.display = 'block'
+          console.error('Erro:', error)
+          alert('Erro ao gerar imagem')
+        })
+    })
+
+    removeImageBtn.addEventListener('click', function () {
+      imagePathInput.value = ''
+      previewImg.src = ''
+      imagePreview.style.display = 'none'
+      imagePlaceholder.style.display = 'block'
     })
   </script>
 {% endblock %}

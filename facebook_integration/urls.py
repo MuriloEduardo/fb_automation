@@ -51,6 +51,7 @@ urlpatterns = [
         views.generate_intelligent_content,
         name="generate_intelligent_content",
     ),
+    path("api/generate-image/", views.generate_image, name="generate_image"),
     path(
         "api/test-openai/", views.test_openai_connection, name="test_openai_connection"
     ),

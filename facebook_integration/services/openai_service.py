@@ -2,6 +2,7 @@ import os
 import base64
 import openai
 import logging
+import requests
 from uuid import uuid4
 from typing import Dict, Any, Optional
 from django.conf import settings
@@ -197,11 +198,9 @@ class OpenAIService:
             return None
 
         try:
-            # Geração da imagem (retorno base64)
+            # Geração da imagem (API atual não aceita response_format)
             response = self.client.images.generate(
-                model=model,
-                prompt=image_prompt,
-                response_format="b64_json",
+                model=model, prompt=image_prompt, size=size
             )
 
             data_list = getattr(response, "data", None)
@@ -211,21 +210,39 @@ class OpenAIService:
 
             first_item = data_list[0]
             b64 = getattr(first_item, "b64_json", None)
-            if not b64:
-                logger.error("Resposta de imagem vazia da OpenAI")
-                return None
+            url = getattr(first_item, "url", None)
 
             # Preparar diretório em MEDIA_ROOT
             media_root = str(settings.MEDIA_ROOT)
             out_dir = os.path.join(media_root, subdir)
-            os.makedirs(out_dir, exist_ok=True)
+            
+            try:
+                os.makedirs(out_dir, mode=0o755, exist_ok=True)
+            except PermissionError as perm_err:
+                logger.error(
+                    "Sem permissão para criar diretório %s: %s. "
+                    "Execute: sudo chown -R $USER:$USER %s",
+                    out_dir,
+                    str(perm_err),
+                    media_root,
+                )
+                return None
 
             filename = f"{uuid4().hex}.{image_format}"
             out_path = os.path.join(out_dir, filename)
 
-            # Salvar arquivo
-            with open(out_path, "wb") as f:
-                f.write(base64.b64decode(b64))
+            # Salvar arquivo (prioriza base64; se não houver, baixa URL)
+            if b64:
+                with open(out_path, "wb") as f:
+                    f.write(base64.b64decode(b64))
+            elif url:
+                resp = requests.get(url, timeout=30)
+                resp.raise_for_status()
+                with open(out_path, "wb") as f:
+                    f.write(resp.content)
+            else:
+                logger.error("Resposta de imagem sem b64_json ou url")
+                return None
 
             logger.info(f"Imagem gerada e salva em: {out_path}")
             return out_path

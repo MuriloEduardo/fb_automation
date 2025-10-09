@@ -126,7 +126,6 @@ def create_scheduled_post(request):
     """Cria um novo post agendado ou publica imediatamente em múltiplas páginas"""
     if request.method == "POST":
         try:
-            # Importar as tasks
             from .tasks import publish_to_multiple_pages, schedule_multiple_posts
 
             page_ids = request.POST.getlist("facebook_pages")
@@ -135,6 +134,7 @@ def create_scheduled_post(request):
             use_markdown = request.POST.get("use_markdown") == "on"
             post_type = request.POST.get("post_type", "immediate")
             scheduled_time = request.POST.get("scheduled_time")
+            image_path = request.POST.get("image_path", "").strip()
 
             # Validações
             if not page_ids:
@@ -150,17 +150,16 @@ def create_scheduled_post(request):
                     }
                 )
 
-            # Verificar se é AJAX request
             is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
             if post_type == "immediate":
-                # Publicar imediatamente via task
                 task = publish_to_multiple_pages.delay(
                     page_ids=page_ids,
                     content=content,
                     user_id=request.user.id,
                     template_id=template_id,
                     use_markdown=use_markdown,
+                    image_path=image_path,
                 )
 
                 if is_ajax:
@@ -179,7 +178,7 @@ def create_scheduled_post(request):
                     )
                     return redirect("facebook_integration:scheduled_posts")
 
-            else:  # scheduled
+            else:
                 if not scheduled_time:
                     return JsonResponse(
                         {
@@ -188,7 +187,6 @@ def create_scheduled_post(request):
                         }
                     )
 
-                # Agendar posts via task
                 task = schedule_multiple_posts.delay(
                     page_ids=page_ids,
                     content=content,
@@ -196,6 +194,7 @@ def create_scheduled_post(request):
                     user_id=request.user.id,
                     template_id=template_id,
                     use_markdown=use_markdown,
+                    image_path=image_path,
                 )
 
                 if is_ajax:
@@ -221,7 +220,6 @@ def create_scheduled_post(request):
                 messages.error(request, error_msg)
                 return redirect("facebook_integration:create_scheduled_post")
 
-    # GET request - mostrar formulário
     context = {
         "facebook_pages": FacebookPage.objects.filter(is_active=True).order_by("name"),
         "templates": PostTemplate.objects.filter(
@@ -329,6 +327,62 @@ def generate_intelligent_content(request):
 
         except Exception as e:
             logger.error(f"Erro ao gerar conteúdo inteligente: {e}")
+            return JsonResponse({"success": False, "error": f"Erro interno: {str(e)}"})
+
+    return JsonResponse({"success": False, "error": "Método não permitido"})
+
+
+@login_required
+def generate_image(request):
+    if request.method == "POST":
+        try:
+            from .services.openai_service import OpenAIService
+            from .services.image_generation import generate_image_with_fallback
+            import os
+
+            data = json.loads(request.body)
+            content = data.get("content", "").strip()
+
+            if not content:
+                return JsonResponse(
+                    {"success": False, "error": "Conteúdo é obrigatório"}
+                )
+
+            openai_service = OpenAIService()
+            image_prompt = openai_service.generate_image_prompt(content)
+
+            if not image_prompt:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Não foi possível gerar prompt de imagem",
+                    }
+                )
+
+            image_path = generate_image_with_fallback(image_prompt)
+
+            if not image_path:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Não foi possível gerar imagem. Verifique as configurações.",
+                    }
+                )
+
+            rel_path = os.path.relpath(image_path, start=str(settings.MEDIA_ROOT))
+            image_url = settings.MEDIA_URL + rel_path
+
+            return JsonResponse(
+                {
+                    "success": True,
+                    "image_path": rel_path,
+                    "image_url": image_url,
+                    "image_prompt": image_prompt,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Erro ao gerar imagem: {e}")
             return JsonResponse({"success": False, "error": f"Erro interno: {str(e)}"})
 
     return JsonResponse({"success": False, "error": "Método não permitido"})

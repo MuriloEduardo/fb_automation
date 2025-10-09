@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from tasks.models import CeleryTask
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .services.openai_service import OpenAIService, OpenAIServiceException
+from .services.image_generation import generate_image_with_fallback
 from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
 
 logger = logging.getLogger(__name__)
@@ -135,8 +136,7 @@ def publish_post_task(post_id):
         image_path = None
         try:
             if post.generated_image_prompt:
-                openai_service = OpenAIService()
-                image_path = openai_service.generate_image_file(
+                image_path = generate_image_with_fallback(
                     post.generated_image_prompt
                 )
                 # Persistir caminho no post (relativo à MEDIA_ROOT)
@@ -147,7 +147,9 @@ def publish_post_task(post_id):
                     post.generated_image_file = rel_path
                     post.save(update_fields=["generated_image_file"])
         except Exception as img_err:
-            logger.warning(f"Falha ao gerar imagem para post {post_id}: {img_err}")
+            logger.warning(
+                f"Falha ao gerar imagem para post {post_id}: {img_err}"
+            )
 
         # Publica o post (com imagem se disponível)
         if image_path:
@@ -155,7 +157,9 @@ def publish_post_task(post_id):
                 message=post.generated_content, image_path=image_path
             )
         else:
-            result = facebook_client.create_post(message=post.generated_content)
+            result = facebook_client.create_post(
+                message=post.generated_content
+            )
 
         # Extrai informações do resultado
         facebook_post_id = str(result.get("id") or "")
@@ -183,7 +187,9 @@ def publish_post_task(post_id):
             facebook_post_url=fb_url,
         )
 
-        logger.info(f"Post {post_id} publicado com sucesso: {facebook_post_id}")
+        logger.info(
+            f"Post {post_id} publicado com sucesso: {facebook_post_id}"
+        )
         return f"Post {post_id} publicado: {facebook_post_id}"
 
     except ScheduledPost.DoesNotExist:
@@ -230,21 +236,27 @@ def update_post_metrics():
 
             # Atualiza métricas
             published_post.likes_count = (
-                post_details.get("likes", {}).get("summary", {}).get("total_count", 0)
+                post_details.get("likes", {})
+                .get("summary", {})
+                .get("total_count", 0)
             )
             published_post.comments_count = (
                 post_details.get("comments", {})
                 .get("summary", {})
                 .get("total_count", 0)
             )
-            published_post.shares_count = post_details.get("shares", {}).get("count", 0)
+            published_post.shares_count = post_details.get("shares", {}).get(
+                "count", 0
+            )
             published_post.metrics_updated_at = timezone.now()
             published_post.save()
 
             updated_count += 1
 
         except Exception as e:
-            logger.error(f"Erro ao atualizar métricas do post {published_post.id}: {e}")
+            logger.error(
+                f"Erro ao atualizar métricas do post {published_post.id}: {e}"
+            )
             continue
 
     return f"Métricas atualizadas para {updated_count} posts"
@@ -315,11 +327,14 @@ def send_daily_report():
 
 @shared_task(bind=True)
 def publish_to_multiple_pages(
-    self, page_ids, content, user_id, template_id=None, use_markdown=False
+    self,
+    page_ids,
+    content,
+    user_id,
+    template_id=None,
+    use_markdown=False,
+    image_path=None,
 ):
-    """
-    Task para publicar conteúdo em múltiplas páginas simultaneamente
-    """
     user = User.objects.get(id=user_id)
     results = {
         "success": [],
@@ -328,12 +343,10 @@ def publish_to_multiple_pages(
         "processed": 0,
     }
 
-    # Processar markdown se necessário
     processed_content = content
     if use_markdown:
         processed_content = convert_html_to_facebook_text(content)
 
-    # Buscar template se fornecido
     template = None
     if template_id:
         try:
@@ -341,9 +354,12 @@ def publish_to_multiple_pages(
         except PostTemplate.DoesNotExist:
             logger.warning(f"Template {template_id} não encontrado")
 
+    full_image_path = None
+    if image_path:
+        full_image_path = os.path.join(str(settings.MEDIA_ROOT), image_path)
+
     for i, page_id in enumerate(page_ids):
         try:
-            # Atualizar progresso
             self.update_state(
                 state="PROGRESS",
                 meta={
@@ -355,7 +371,6 @@ def publish_to_multiple_pages(
 
             page = FacebookPage.objects.get(id=page_id)
 
-            # Verificar se a página pode publicar
             if not page.can_publish:
                 results["failed"].append(
                     {
@@ -366,10 +381,14 @@ def publish_to_multiple_pages(
                 )
                 continue
 
-            # Publicar usando a API do Facebook
             try:
                 api_client = FacebookAPIClient(page.access_token, page.page_id)
-                post_response = api_client.create_post(processed_content)
+                if full_image_path and os.path.exists(full_image_path):
+                    post_response = api_client.create_post(
+                        message=processed_content, image_path=full_image_path
+                    )
+                else:
+                    post_response = api_client.create_post(processed_content)
             except Exception as api_error:
                 logger.error(
                     "Erro na API do Facebook para página %s: %s",
@@ -385,13 +404,16 @@ def publish_to_multiple_pages(
                 )
                 continue
 
-            # Registrar post publicado
             published_post = PublishedPost.objects.create(
                 facebook_page=page,
                 content=processed_content,
                 facebook_post_id=post_response.get("id"),
                 facebook_post_url=(f"https://facebook.com/{post_response.get('id')}"),
             )
+
+            if image_path:
+                published_post.image_file = image_path
+                published_post.save(update_fields=["image_file"])
 
             results["success"].append(
                 {
@@ -668,7 +690,7 @@ def auto_generate_and_post_content(self):
             try:
                 image_prompt = openai_service.generate_image_prompt(content)
                 if image_prompt:
-                    image_path = openai_service.generate_image_file(image_prompt)
+                    image_path = generate_image_with_fallback(image_prompt)
             except Exception as e:
                 logger.warning(
                     f"Falha ao gerar imagem para página {page.name}: {str(e)}"

@@ -49,11 +49,15 @@
           <div class="d-flex align-items-center">
             <span class="badge bg-{% if page.is_active %}
                 
+                
                 success
+
 
               {% else %}
                 
+                
                 secondary
+
 
               {% endif %} me-2">
               {% if page.is_active %}
@@ -88,7 +92,7 @@
           </h4>
 
           {% if page.can_publish %}
-            <form method="post" action="{% url 'schedule_post_for_page' page.pk %}">
+            <form method="post" action="{% url 'facebook_integration:schedule_post_for_page' page.pk %}">
               {% csrf_token %}
               <div class="mb-3">
                 <label for="template" class="form-label">Template:</label>
@@ -130,11 +134,15 @@
                 <div class="d-flex align-items-center mb-2">
                   <i class="fas fa-edit text-{% if page.can_publish %}
                       
+                      
                       success
+
 
                     {% else %}
                       
+                      
                       muted
+
 
                     {% endif %} me-2">
 
@@ -146,11 +154,15 @@
                 <div class="d-flex align-items-center mb-2">
                   <i class="fas fa-chart-bar text-{% if page.can_read_insights %}
                       
+                      
                       info
+
 
                     {% else %}
                       
+                      
                       muted
+
 
                     {% endif %} me-2">
 
@@ -162,11 +174,15 @@
                 <div class="d-flex align-items-center">
                   <i class="fas fa-bullhorn text-{% if page.can_manage_ads %}
                       
+                      
                       warning
+
 
                     {% else %}
                       
+                      
                       muted
+
 
                     {% endif %} me-2">
 
@@ -178,11 +194,15 @@
                 <div class="d-flex align-items-center">
                   <i class="fas fa-sync-alt text-{% if page.auto_sync %}
                       
+                      
                       primary
+
 
                     {% else %}
                       
+                      
                       muted
+
 
                     {% endif %} me-2">
 
@@ -224,19 +244,27 @@
                       <div class="text-end">
                         <span class="badge bg-{% if post.status == 'published' %}
                             
+                            
                             success
+
 
                           {% elif post.status == 'failed' %}
                             
+                            
                             danger
+
 
                           {% elif post.status == 'ready' %}
                             
+                            
                             info
+
 
                           {% else %}
                             
+                            
                             secondary
+
 
                           {% endif %} status-badge">
                           {{ post.get_status_display }}
@@ -317,9 +345,9 @@
       const alertDiv = document.createElement('div')
       alertDiv.className = `alert alert-${type} alert-dismissible fade show`
       alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `
     
       const container = document.querySelector('.container-fluid')
       container.insertBefore(alertDiv, container.firstChild)

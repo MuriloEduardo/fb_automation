@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Wait for database to be ready (only for web service)
-if [ "$1" = "python" ] && [ "$2" = "manage.py" ] && [ "$3" = "runserver" ]; then
+if [ "$1" = "gunicorn" ]; then
     echo "Waiting for database..."
     while ! pg_isready -h db -p 5432 -U postgres; do
         echo "Database is unavailable - sleeping"
@@ -24,7 +24,11 @@ else:
     print('Superuser already exists')
 "
 
-    echo "Starting Django server..."
+    # Collect static files
+    echo "Collecting static files..."
+    python manage.py collectstatic --noinput --clear
+
+    echo "Starting Gunicorn server..."
 fi
 
 # Execute the command passed to the container

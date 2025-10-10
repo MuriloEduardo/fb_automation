@@ -31,7 +31,7 @@ services:
 
   web:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn fb_automation.wsgi:application --config gunicorn.conf.py
     volumes:
       - .:/app
       - static_volume:/app/static
@@ -41,7 +41,7 @@ services:
       - "80:8000"
       - "443:8000"
     environment:
-      - DEBUG=1
+      - DEBUG=0
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -63,7 +63,7 @@ services:
       - media_volume:/app/media
       - /home/ec2-user/fb_automation/application_default_credentials.json:/app/application_default_credentials.json:ro
     environment:
-      - DEBUG=1
+      - DEBUG=0
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -83,7 +83,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - DEBUG=1
+      - DEBUG=0
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -102,7 +102,7 @@ services:
     ports:
       - "5555:5555"
     environment:
-      - DEBUG=1
+      - DEBUG=0
       - DATABASE_URL=postgresql://postgres:postgres123@db:5432/fb_automation
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0

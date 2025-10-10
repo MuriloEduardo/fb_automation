@@ -887,24 +887,34 @@ def sync_facebook_metrics(self, page_id=None):
                 errors.append(error_msg)
 
             # Sincronizar métricas dos posts da página
-            recent_posts = PublishedPost.objects.filter(facebook_page=page).order_by(
-                "-published_at"
-            )[
-                :50
-            ]  # Últimos 50 posts
+            recent_posts = (
+                PublishedPost.objects.filter(
+                    facebook_page=page,
+                    status="published",  # Apenas posts publicados com sucesso
+                )
+                .exclude(facebook_post_id__isnull=True)
+                .exclude(facebook_post_id="")
+                .order_by("-published_at")[:50]
+            )  # Últimos 50 posts
 
             for post in recent_posts:
                 try:
                     post_data = _sync_post_metrics(post)
-                    synced_posts += 1
+
+                    # Só conta como sincronizado se retornou dados válidos
+                    if post_data and sum(post_data.values()) > 0:
+                        synced_posts += 1
 
                     if synced_posts % 10 == 0:
                         logger.info(f"Sincronizados {synced_posts} posts...")
 
                 except Exception as e:
-                    error_msg = f"Erro no post {post.post_id}: {str(e)}"
+                    error_msg = (
+                        f"Erro no post {post.facebook_post_id or 'sem ID'}: {str(e)}"
+                    )
                     logger.error(error_msg)
                     errors.append(error_msg)
+                    continue  # Continua com o próximo post
 
         except Exception as e:
             error_msg = f"Erro geral na página {page.name}: {str(e)}"
@@ -944,7 +954,7 @@ def _sync_page_metrics(page):
     impressions = 0
     impressions_unique = 0
     engaged_users = 0
-    
+
     try:
         insights = api_client._make_request(
             "GET",
@@ -985,14 +995,23 @@ def _sync_post_metrics(post):
     """Sincroniza métricas de um post específico"""
     from .models import PostMetrics
 
+    # Validar se o post tem ID válido
+    if not post.facebook_post_id or post.facebook_post_id.strip() == "":
+        logger.warning(f"Post {post.pk} não tem facebook_post_id válido")
+        return {"likes": 0, "comments": 0, "shares": 0, "reach": 0}
+
     api_client = FacebookAPIClient(post.facebook_page.access_token)
 
-    # Buscar dados do post
-    post_data = api_client._make_request(
-        "GET",
-        f"{post.facebook_post_id}",
-        data={"fields": "likes.summary(true),comments.summary(true),shares"},
-    )
+    try:
+        # Buscar dados do post
+        post_data = api_client._make_request(
+            "GET",
+            f"{post.facebook_post_id}",
+            data={"fields": "likes.summary(true),comments.summary(true),shares"},
+        )
+    except Exception as e:
+        logger.warning(f"Post {post.facebook_post_id} não encontrado ou deletado: {e}")
+        return {"likes": 0, "comments": 0, "shares": 0, "reach": 0}
 
     likes = post_data.get("likes", {}).get("summary", {}).get("total_count", 0)
     comments = post_data.get("comments", {}).get("summary", {}).get("total_count", 0)

@@ -29,18 +29,63 @@ logger = logging.getLogger(__name__)
 
 @login_required
 def dashboard(request):
-    """Dashboard principal com estatísticas"""
+    """Dashboard principal com estatísticas e métricas"""
+    from .models import PageMetrics, PostMetrics
+    from django.db.models import Sum, Avg, Max
+    from datetime import timedelta
+    
+    # Estatísticas básicas
+    total_pages = FacebookPage.objects.filter(is_active=True).count()
+    total_templates = PostTemplate.objects.filter(is_active=True).count()
+    pending_posts = ScheduledPost.objects.filter(status="pending").count()
+    published_today = PublishedPost.objects.filter(
+        published_at__date=timezone.now().date()
+    ).count()
+    
+    # Métricas agregadas de todas as páginas (últimos 7 dias)
+    week_ago = timezone.now() - timedelta(days=7)
+    
+    # Última métrica de cada página
+    pages_with_metrics = FacebookPage.objects.filter(
+        is_active=True,
+        metrics__isnull=False
+    ).annotate(
+        latest_followers=Max('metrics__followers_count'),
+        latest_likes=Max('metrics__likes_count')
+    )
+    
+    total_followers = sum(
+        p.latest_followers for p in pages_with_metrics if p.latest_followers
+    ) or 0
+    total_likes = sum(
+        p.latest_likes for p in pages_with_metrics if p.latest_likes
+    ) or 0
+    
+    # Engagement médio dos posts recentes
+    recent_posts_metrics = PostMetrics.objects.filter(
+        collected_at__gte=week_ago
+    ).aggregate(
+        avg_likes=Avg('likes_count'),
+        avg_comments=Avg('comments_count'),
+        avg_shares=Avg('shares_count'),
+        avg_engagement=Avg('engagement_rate')
+    )
+    
     context = {
-        "total_pages": FacebookPage.objects.filter(is_active=True).count(),
-        "total_templates": PostTemplate.objects.filter(is_active=True).count(),
-        "pending_posts": ScheduledPost.objects.filter(status="pending").count(),
-        "published_today": PublishedPost.objects.filter(
-            published_at__date=timezone.now().date()
-        ).count(),
+        "total_pages": total_pages,
+        "total_templates": total_templates,
+        "pending_posts": pending_posts,
+        "published_today": published_today,
+        "total_followers": total_followers,
+        "total_likes": total_likes,
+        "avg_engagement": round(recent_posts_metrics['avg_engagement'] or 0, 2),
+        "avg_likes": int(recent_posts_metrics['avg_likes'] or 0),
+        "avg_comments": int(recent_posts_metrics['avg_comments'] or 0),
         "recent_posts": PublishedPost.objects.order_by("-published_at")[:5],
         "upcoming_posts": ScheduledPost.objects.filter(
             status__in=["pending", "ready"], scheduled_time__gte=timezone.now()
         ).order_by("scheduled_time")[:5],
+        "active_pages": FacebookPage.objects.filter(is_active=True)[:6],
     }
     return render(request, "facebook_integration/dashboard.html", context)
 
@@ -833,3 +878,163 @@ def schedule_post_for_page(request, page_id):
             messages.error(request, "Template e horário são obrigatórios")
 
     return redirect("page_detail", page_id=page.pk)
+
+
+@login_required
+def page_metrics_api(request, page_id):
+    """API para retornar métricas históricas de uma página"""
+    from .models import PageMetrics
+    from django.db.models import Avg
+    from datetime import timedelta
+    
+    page = get_object_or_404(FacebookPage, pk=page_id)
+    
+    # Período (últimos 30 dias por padrão)
+    days = int(request.GET.get('days', 30))
+    start_date = timezone.now() - timedelta(days=days)
+    
+    # Buscar métricas
+    metrics = PageMetrics.objects.filter(
+        page=page,
+        collected_at__gte=start_date
+    ).order_by('collected_at').values(
+        'followers_count',
+        'likes_count',
+        'page_impressions',
+        'page_impressions_unique',
+        'page_engaged_users',
+        'collected_at'
+    )
+    
+    # Formatar dados para o gráfico
+    data = {
+        'labels': [],
+        'followers': [],
+        'likes': [],
+        'impressions': [],
+        'engaged_users': [],
+    }
+    
+    for metric in metrics:
+        data['labels'].append(
+            metric['collected_at'].strftime('%d/%m/%Y %H:%M')
+        )
+        data['followers'].append(metric['followers_count'])
+        data['likes'].append(metric['likes_count'])
+        data['impressions'].append(metric['page_impressions'])
+        data['engaged_users'].append(metric['page_engaged_users'])
+    
+    # Estatísticas gerais
+    latest = metrics.last() if metrics else None
+    stats = {
+        'current_followers': latest['followers_count'] if latest else 0,
+        'current_likes': latest['likes_count'] if latest else 0,
+        'avg_impressions': int(
+            metrics.aggregate(Avg('page_impressions'))['page_impressions__avg'] or 0
+        ),
+        'avg_engaged': int(
+            metrics.aggregate(Avg('page_engaged_users'))['page_engaged_users__avg'] or 0
+        ),
+    }
+    
+    return JsonResponse({
+        'data': data,
+        'stats': stats,
+    })
+
+
+@login_required
+def post_metrics_api(request, post_id):
+    """API para retornar métricas históricas de um post"""
+    from .models import PostMetrics
+    
+    post = get_object_or_404(PublishedPost, pk=post_id)
+    
+    # Buscar métricas
+    metrics = PostMetrics.objects.filter(
+        post=post
+    ).order_by('collected_at').values(
+        'likes_count',
+        'comments_count',
+        'shares_count',
+        'reach',
+        'impressions',
+        'engagement_rate',
+        'collected_at'
+    )
+    
+    # Formatar dados para o gráfico
+    data = {
+        'labels': [],
+        'likes': [],
+        'comments': [],
+        'shares': [],
+        'reach': [],
+        'engagement_rate': [],
+    }
+    
+    for metric in metrics:
+        data['labels'].append(
+            metric['collected_at'].strftime('%d/%m/%Y %H:%M')
+        )
+        data['likes'].append(metric['likes_count'])
+        data['comments'].append(metric['comments_count'])
+        data['shares'].append(metric['shares_count'])
+        data['reach'].append(metric['reach'])
+        data['engagement_rate'].append(round(metric['engagement_rate'], 2))
+    
+    # Estatísticas atuais
+    latest = metrics.last() if metrics else None
+    stats = {
+        'likes': latest['likes_count'] if latest else 0,
+        'comments': latest['comments_count'] if latest else 0,
+        'shares': latest['shares_count'] if latest else 0,
+        'reach': latest['reach'] if latest else 0,
+        'engagement_rate': round(latest['engagement_rate'], 2) if latest else 0,
+    }
+    
+    return JsonResponse({
+        'data': data,
+        'stats': stats,
+    })
+
+
+@login_required
+def posts_comparison_api(request, page_id):
+    """API para comparar métricas de múltiplos posts"""
+    from .models import PostMetrics
+    from django.db.models import Max
+    
+    page = get_object_or_404(FacebookPage, pk=page_id)
+    
+    # Buscar últimos posts com métricas
+    posts = PublishedPost.objects.filter(
+        facebook_page=page
+    ).annotate(
+        latest_metrics=Max('metrics__collected_at')
+    ).filter(
+        latest_metrics__isnull=False
+    ).order_by('-published_at')[:10]
+    
+    data = {
+        'labels': [],
+        'likes': [],
+        'comments': [],
+        'shares': [],
+        'engagement_rate': [],
+    }
+    
+    for post in posts:
+        # Pegar última métrica de cada post
+        latest_metric = post.metrics.order_by('-collected_at').first()
+        
+        if latest_metric:
+            # Truncar conteúdo para label
+            label = post.content[:30] + '...' if len(post.content) > 30 else post.content
+            data['labels'].append(label)
+            data['likes'].append(latest_metric.likes_count)
+            data['comments'].append(latest_metric.comments_count)
+            data['shares'].append(latest_metric.shares_count)
+            data['engagement_rate'].append(round(latest_metric.engagement_rate, 2))
+    
+    return JsonResponse({'data': data})

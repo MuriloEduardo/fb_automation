@@ -842,3 +842,197 @@ def _build_intelligent_prompt_for_task(context, template_id=None):
     )
 
     return prompt
+
+
+@shared_task(bind=True)
+def sync_facebook_metrics(self, page_id=None):
+    """
+    Sincroniza métricas do Facebook para páginas e posts.
+    Se page_id for None, sincroniza todas as páginas ativas.
+    """
+    from .models import FacebookPage, PublishedPost, PageMetrics, PostMetrics
+
+    logger.info("Iniciando sincronização de métricas do Facebook")
+
+    # Selecionar páginas
+    if page_id:
+        pages = FacebookPage.objects.filter(pk=page_id, is_active=True)
+    else:
+        pages = FacebookPage.objects.filter(is_active=True)
+
+    if not pages.exists():
+        logger.warning("Nenhuma página ativa para sincronizar")
+        return {"status": "no_pages", "synced": 0}
+
+    synced_pages = 0
+    synced_posts = 0
+    errors = []
+
+    for page in pages:
+        try:
+            logger.info(f"Sincronizando métricas da página: {page.name}")
+
+            # Sincronizar métricas da página
+            try:
+                page_data = _sync_page_metrics(page)
+                synced_pages += 1
+                logger.info(
+                    f"✓ Página {page.name}: "
+                    f"{page_data['followers']} seguidores, "
+                    f"{page_data['likes']} curtidas"
+                )
+            except Exception as e:
+                error_msg = f"Erro na página {page.name}: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+
+            # Sincronizar métricas dos posts da página
+            recent_posts = PublishedPost.objects.filter(facebook_page=page).order_by(
+                "-published_at"
+            )[
+                :50
+            ]  # Últimos 50 posts
+
+            for post in recent_posts:
+                try:
+                    post_data = _sync_post_metrics(post)
+                    synced_posts += 1
+
+                    if synced_posts % 10 == 0:
+                        logger.info(f"Sincronizados {synced_posts} posts...")
+
+                except Exception as e:
+                    error_msg = f"Erro no post {post.post_id}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+
+        except Exception as e:
+            error_msg = f"Erro geral na página {page.name}: {str(e)}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+
+    result = {
+        "status": "completed",
+        "synced_pages": synced_pages,
+        "synced_posts": synced_posts,
+        "errors": errors[:10],  # Limitar a 10 erros
+    }
+
+    logger.info(
+        f"Sincronização concluída: {synced_pages} páginas, "
+        f"{synced_posts} posts, {len(errors)} erros"
+    )
+
+    return result
+
+
+def _sync_page_metrics(page):
+    """Sincroniza métricas de uma página específica"""
+    from .models import PageMetrics
+
+    api_client = FacebookAPIClient(page.access_token)
+
+    # Buscar dados da página
+    page_data = api_client._make_request(
+        "GET", f"{page.page_id}", data={"fields": "fan_count,followers_count,name"}
+    )
+
+    followers = page_data.get("followers_count", 0)
+    likes = page_data.get("fan_count", 0)
+
+    # Buscar insights da página (simplificado - algumas métricas requerem permissões especiais)
+    impressions = 0
+    impressions_unique = 0
+    engaged_users = 0
+    
+    try:
+        insights = api_client._make_request(
+            "GET",
+            f"{page.page_id}/insights",
+            data={
+                "metric": "page_impressions",
+                "period": "day",
+            },
+        )
+
+        for metric in insights.get("data", []):
+            values = metric.get("values", [])
+            if values:
+                impressions = values[-1].get("value", 0)
+
+    except Exception as e:
+        logger.warning(f"Não foi possível obter insights de impressões: {e}")
+
+    # Criar registro de métrica
+    PageMetrics.objects.create(
+        page=page,
+        followers_count=followers,
+        likes_count=likes,
+        page_impressions=impressions,
+        page_impressions_unique=impressions_unique,
+        page_engaged_users=engaged_users,
+    )
+
+    # Atualizar contagem na página
+    page.followers_count = followers
+    page.last_sync = timezone.now()
+    page.save(update_fields=["followers_count", "last_sync"])
+
+    return {"followers": followers, "likes": likes, "impressions": impressions}
+
+
+def _sync_post_metrics(post):
+    """Sincroniza métricas de um post específico"""
+    from .models import PostMetrics
+
+    api_client = FacebookAPIClient(post.facebook_page.access_token)
+
+    # Buscar dados do post
+    post_data = api_client._make_request(
+        "GET",
+        f"{post.facebook_post_id}",
+        data={"fields": "likes.summary(true),comments.summary(true),shares"},
+    )
+
+    likes = post_data.get("likes", {}).get("summary", {}).get("total_count", 0)
+    comments = post_data.get("comments", {}).get("summary", {}).get("total_count", 0)
+    shares = post_data.get("shares", {}).get("count", 0)
+
+    # Buscar insights do post
+    try:
+        insights = api_client._make_request(
+            "GET",
+            f"{post.facebook_post_id}/insights",
+            data={"metric": "post_impressions,post_impressions_unique"},
+        )
+
+        impressions = 0
+        reach = 0
+
+        for metric in insights.get("data", []):
+            metric_name = metric.get("name")
+            values = metric.get("values", [])
+
+            if values:
+                value = values[0].get("value", 0)
+
+                if metric_name == "post_impressions":
+                    impressions = value
+                elif metric_name == "post_impressions_unique":
+                    reach = value
+
+    except Exception as e:
+        logger.warning(f"Não foi possível obter insights do post: {e}")
+        impressions = reach = 0
+
+    # Criar registro de métrica
+    PostMetrics.objects.create(
+        post=post,
+        likes_count=likes,
+        comments_count=comments,
+        shares_count=shares,
+        reach=reach,
+        impressions=impressions,
+    )
+
+    return {"likes": likes, "comments": comments, "shares": shares, "reach": reach}

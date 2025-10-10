@@ -56,6 +56,22 @@ urlpatterns = [
         "api/test-openai/", views.test_openai_connection, name="test_openai_connection"
     ),
     path("task-status/<str:task_id>/", views.task_status, name="task_status"),
+    # Metrics APIs
+    path(
+        "api/metrics/page/<int:page_id>/",
+        views.page_metrics_api,
+        name="page_metrics_api"
+    ),
+    path(
+        "api/metrics/post/<int:post_id>/",
+        views.post_metrics_api,
+        name="post_metrics_api"
+    ),
+    path(
+        "api/metrics/posts-comparison/<int:page_id>/",
+        views.posts_comparison_api,
+        name="posts_comparison_api"
+    ),
     # Published Posts
     path("published/", views.published_posts, name="published_posts"),
     path("posts/", views.posts, name="posts"),

@@ -264,3 +264,93 @@ class AIConfiguration(models.Model):
         if self.is_default:
             AIConfiguration.objects.filter(is_default=True).update(is_default=False)
         super().save(*args, **kwargs)
+
+
+class PageMetrics(models.Model):
+    """Métricas históricas de páginas do Facebook"""
+
+    page = models.ForeignKey(
+        FacebookPage,
+        on_delete=models.CASCADE,
+        related_name="metrics",
+        verbose_name="Página",
+    )
+
+    # Métricas da página
+    followers_count = models.IntegerField(default=0, verbose_name="Seguidores")
+    likes_count = models.IntegerField(default=0, verbose_name="Curtidas")
+
+    # Engagement
+    page_impressions = models.IntegerField(
+        default=0, verbose_name="Impressões da Página"
+    )
+    page_impressions_unique = models.IntegerField(
+        default=0, verbose_name="Impressões Únicas"
+    )
+    page_engaged_users = models.IntegerField(
+        default=0, verbose_name="Usuários Engajados"
+    )
+
+    # Timestamp
+    collected_at = models.DateTimeField(auto_now_add=True, verbose_name="Coletado em")
+
+    class Meta:
+        verbose_name = "Métrica de Página"
+        verbose_name_plural = "Métricas de Páginas"
+        ordering = ["-collected_at"]
+        indexes = [
+            models.Index(fields=["page", "-collected_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.page.name} - {self.collected_at.strftime('%d/%m/%Y %H:%M')}"
+
+
+class PostMetrics(models.Model):
+    """Métricas históricas de posts publicados"""
+
+    post = models.ForeignKey(
+        PublishedPost,
+        on_delete=models.CASCADE,
+        related_name="metrics",
+        verbose_name="Post",
+    )
+
+    # Engagement
+    likes_count = models.IntegerField(default=0, verbose_name="Curtidas")
+    comments_count = models.IntegerField(default=0, verbose_name="Comentários")
+    shares_count = models.IntegerField(default=0, verbose_name="Compartilhamentos")
+
+    # Alcance
+    reach = models.IntegerField(default=0, verbose_name="Alcance")
+    impressions = models.IntegerField(default=0, verbose_name="Impressões")
+
+    # Engajamento calculado
+    engagement_rate = models.FloatField(
+        default=0.0, verbose_name="Taxa de Engajamento (%)"
+    )
+
+    # Timestamp
+    collected_at = models.DateTimeField(auto_now_add=True, verbose_name="Coletado em")
+
+    class Meta:
+        verbose_name = "Métrica de Post"
+        verbose_name_plural = "Métricas de Posts"
+        ordering = ["-collected_at"]
+        indexes = [
+            models.Index(fields=["post", "-collected_at"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"Post {self.post.post_id} - {self.collected_at.strftime('%d/%m/%Y %H:%M')}"
+        )
+
+    def save(self, *args, **kwargs):
+        # Calcular taxa de engajamento
+        if self.reach > 0:
+            total_engagement = (
+                self.likes_count + self.comments_count + self.shares_count
+            )
+            self.engagement_rate = (total_engagement / self.reach) * 100
+        super().save(*args, **kwargs)

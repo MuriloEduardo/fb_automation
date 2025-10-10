@@ -1,0 +1,201 @@
+{% extends 'facebook_integration/base.html' %}
+
+{% block title %}
+  Dashboard - Facebook Automation
+{% endblock %}
+{% block page_title %}
+  Dashboard
+{% endblock %}
+
+{% block content %}
+  <!-- Stats Cards -->
+  <div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card text-white bg-primary">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="h5 mb-0">{{ total_pages }}</div>
+              <div class="small">Páginas Ativas</div>
+            </div>
+            <div class="h1">
+              <i class="bi bi-facebook"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card text-white bg-success">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="h5 mb-0">{{ total_templates }}</div>
+              <div class="small">Templates</div>
+            </div>
+            <div class="h1">
+              <i class="bi bi-file-text"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card text-white bg-warning">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="h5 mb-0">{{ pending_posts }}</div>
+              <div class="small">Posts Pendentes</div>
+            </div>
+            <div class="h1">
+              <i class="bi bi-clock"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+      <div class="card text-white bg-info">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="h5 mb-0">{{ published_today }}</div>
+              <div class="small">Publicados Hoje</div>
+            </div>
+            <div class="h1">
+              <i class="bi bi-check-circle"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Ações Rápidas</h5>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6 col-lg-3 mb-3">
+              <a href="{% url 'facebook_integration:page_manager' %}" class="btn btn-primary w-100">
+                <i class="bi bi-facebook me-2"></i>
+                Gerenciar Páginas
+              </a>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+              <a href="{% url 'facebook_integration:create_template' %}" class="btn btn-success w-100">
+                <i class="bi bi-plus-circle me-2"></i>
+                Novo Template
+              </a>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+              <a href="{% url 'facebook_integration:create_scheduled_post' %}" class="btn btn-warning w-100">
+                <i class="bi bi-calendar-plus me-2"></i>
+                Agendar Post
+              </a>
+            </div>
+            <div class="col-md-6 col-lg-3 mb-3">
+              <a href="/admin/" class="btn btn-secondary w-100">
+                <i class="bi bi-gear me-2"></i>
+                Admin
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="row">
+    <div class="col-lg-6 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Próximos Posts</h5>
+        </div>
+        <div class="card-body">
+          {% if upcoming_posts %}
+            {% for post in upcoming_posts %}
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                  <div class="fw-bold">{{ post.facebook_page.name }}</div>
+                  <small class="text-muted">{{ post.template.name }}</small>
+                </div>
+                <div class="text-end">
+                  <span class="badge bg-secondary status-badge">{{ post.get_status_display }}</span>
+                  <div>
+                    <small class="text-muted">{{ post.scheduled_time|date:'d/m H:i' }}</small>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted mb-0">Nenhum post agendado</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Posts Recentes</h5>
+        </div>
+        <div class="card-body">
+          {% if recent_posts %}
+            {% for post in recent_posts %}
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <div>
+                  <div class="fw-bold">{{ post.facebook_page.name }}</div>
+                  <small class="text-muted">{{ post.content|truncatechars:50 }}</small>
+                </div>
+                <div class="text-end">
+                  <div class="small">
+                    <i class="bi bi-heart text-danger"></i> {{ post.likes_count }}
+                    <i class="bi bi-chat ms-2"></i> {{ post.comments_count }}
+                  </div>
+                  <div>
+                    <small class="text-muted">{{ post.published_at|date:'d/m H:i' }}</small>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-muted mb-0">Nenhum post publicado ainda</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    function testOpenAI() {
+      fetch('{% url "facebook_integration:test_openai_connection" %}', {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            alert('✅ Conexão com OpenAI OK!')
+          } else {
+            alert('❌ Erro na conexão: ' + data.error)
+          }
+        })
+        .catch((error) => {
+          alert('❌ Erro: ' + error)
+        })
+    }
+  </script>
+{% endblock %}

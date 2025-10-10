@@ -82,6 +82,46 @@
       </div>
     </div>
 
+    <!-- Métricas da Página -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Métricas e Estatísticas</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-4">
+              <div class="col-12">
+                <div class="btn-group mb-3" role="group">
+                  <button type="button" class="btn btn-outline-primary active" onclick="loadMetrics(7)">7 dias</button>
+                  <button type="button" class="btn btn-outline-primary" onclick="loadMetrics(30)">30 dias</button>
+                  <button type="button" class="btn btn-outline-primary" onclick="loadMetrics(90)">90 dias</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-lg-6 mb-4">
+                <h6>Evolução de Seguidores e Curtidas</h6>
+                <canvas id="followersChart" style="max-height: 300px;"></canvas>
+              </div>
+              <div class="col-lg-6 mb-4">
+                <h6>Impressões e Engajamento</h6>
+                <canvas id="engagementChart" style="max-height: 300px;"></canvas>
+              </div>
+            </div>
+            
+            <div class="row">
+              <div class="col-lg-12">
+                <h6>Comparação de Posts Recentes</h6>
+                <canvas id="postsComparisonChart" style="max-height: 350px;"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="row">
       <!-- Formulário de Agendamento -->
       <div class="col-lg-5">
@@ -309,7 +349,192 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
+    let followersChart, engagementChart, postsComparisonChart;
+    
+    // Carregar métricas ao carregar a página
+    document.addEventListener('DOMContentLoaded', function () {
+      loadMetrics(7);
+      loadPostsComparison();
+      
+      // Set minimum datetime to now
+      const now = new Date()
+      const offset = now.getTimezoneOffset() * 60000
+      const localTime = new Date(now.getTime() - offset)
+      const scheduledInput = document.getElementById('scheduled_time');
+      if (scheduledInput) {
+        scheduledInput.min = localTime.toISOString().slice(0, 16);
+      }
+    });
+    
+    function loadMetrics(days) {
+      // Atualizar botões ativos
+      document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      fetch(`{% url 'facebook_integration:page_metrics_api' page.pk %}?days=${days}`)
+        .then(response => response.json())
+        .then(data => {
+          updateFollowersChart(data.data);
+          updateEngagementChart(data.data);
+        })
+        .catch(error => {
+          console.error('Erro ao carregar métricas:', error);
+        });
+    }
+    
+    function updateFollowersChart(data) {
+      const ctx = document.getElementById('followersChart').getContext('2d');
+      
+      if (followersChart) {
+        followersChart.destroy();
+      }
+      
+      followersChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: 'Seguidores',
+              data: data.followers,
+              borderColor: '#1877f2',
+              backgroundColor: 'rgba(24, 119, 242, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Curtidas',
+              data: data.likes,
+              borderColor: '#42a5f5',
+              backgroundColor: 'rgba(66, 165, 245, 0.1)',
+              tension: 0.4,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+    
+    function updateEngagementChart(data) {
+      const ctx = document.getElementById('engagementChart').getContext('2d');
+      
+      if (engagementChart) {
+        engagementChart.destroy();
+      }
+      
+      engagementChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: 'Impressões',
+              data: data.impressions,
+              backgroundColor: 'rgba(75, 192, 192, 0.6)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1
+            },
+            {
+              label: 'Usuários Engajados',
+              data: data.engaged_users,
+              backgroundColor: 'rgba(255, 159, 64, 0.6)',
+              borderColor: 'rgba(255, 159, 64, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+    
+    function loadPostsComparison() {
+      fetch(`{% url 'facebook_integration:posts_comparison_api' page.pk %}`)
+        .then(response => response.json())
+        .then(data => {
+          updatePostsComparisonChart(data.data);
+        })
+        .catch(error => {
+          console.error('Erro ao carregar comparação de posts:', error);
+        });
+    }
+    
+    function updatePostsComparisonChart(data) {
+      const ctx = document.getElementById('postsComparisonChart').getContext('2d');
+      
+      if (postsComparisonChart) {
+        postsComparisonChart.destroy();
+      }
+      
+      postsComparisonChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: 'Curtidas',
+              data: data.likes,
+              backgroundColor: 'rgba(24, 119, 242, 0.6)',
+            },
+            {
+              label: 'Comentários',
+              data: data.comments,
+              backgroundColor: 'rgba(66, 165, 245, 0.6)',
+            },
+            {
+              label: 'Compartilhamentos',
+              data: data.shares,
+              backgroundColor: 'rgba(102, 187, 106, 0.6)',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'top',
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+    
     function testPermissions() {
       const modal = new bootstrap.Modal(document.getElementById('loadingModal'))
       modal.show()
@@ -358,13 +583,5 @@
         }
       }, 5000)
     }
-    
-    // Set minimum datetime to now
-    document.addEventListener('DOMContentLoaded', function () {
-      const now = new Date()
-      const offset = now.getTimezoneOffset() * 60000
-      const localTime = new Date(now.getTime() - offset)
-      document.getElementById('scheduled_time').min = localTime.toISOString().slice(0, 16)
-    })
   </script>
 {% endblock %}

@@ -8,6 +8,8 @@ from .models import (
     ScheduledPost,
     PublishedPost,
     AIConfiguration,
+    PageMetrics,
+    PostMetrics,
 )
 
 
@@ -86,6 +88,7 @@ class FacebookPageAdmin(admin.ModelAdmin):
         "deactivate_pages",
         "enable_auto_posting",
         "disable_auto_posting",
+        "sync_metrics_now",
     ]
 
     def activate_pages(self, request, queryset):
@@ -111,6 +114,22 @@ class FacebookPageAdmin(admin.ModelAdmin):
         self.message_user(request, f"{count} páginas agora têm postagem manual.")
 
     disable_auto_posting.short_description = "Desabilitar postagem automática"
+
+    def sync_metrics_now(self, request, queryset):
+        from .tasks import sync_facebook_metrics
+
+        count = 0
+        for page in queryset:
+            sync_facebook_metrics.delay(page_id=page.id)
+            count += 1
+
+        self.message_user(
+            request,
+            f"Sincronização de métricas iniciada para {count} página(s). "
+            "Verifique os resultados em alguns minutos.",
+        )
+
+    sync_metrics_now.short_description = "🔄 Sincronizar métricas agora"
 
 
 @admin.register(PostTemplate)
@@ -331,3 +350,41 @@ class AIConfigurationAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+
+@admin.register(PageMetrics)
+class PageMetricsAdmin(admin.ModelAdmin):
+    list_display = [
+        "page",
+        "followers_count",
+        "likes_count",
+        "page_engaged_users",
+        "collected_at",
+    ]
+    list_filter = ["page", "collected_at"]
+    search_fields = ["page__name"]
+    readonly_fields = ["collected_at"]
+    date_hierarchy = "collected_at"
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(PostMetrics)
+class PostMetricsAdmin(admin.ModelAdmin):
+    list_display = [
+        "post",
+        "likes_count",
+        "comments_count",
+        "shares_count",
+        "reach",
+        "engagement_rate",
+        "collected_at",
+    ]
+    list_filter = ["post__facebook_page", "collected_at"]
+    search_fields = ["post__post_id"]
+    readonly_fields = ["collected_at", "engagement_rate"]
+    date_hierarchy = "collected_at"
+
+    def has_add_permission(self, request):
+        return False

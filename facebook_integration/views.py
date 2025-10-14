@@ -670,7 +670,11 @@ def task_status(request, task_id):
 @login_required
 def page_manager(request):
     """Página principal para gerenciar páginas do Facebook"""
-    pages = FacebookPage.objects.all().order_by("-is_active", "name")
+    pages = (
+        FacebookPage.objects.exclude(is_active=False)
+        .all()
+        .order_by("-followers_count", "name")
+    )
 
     # Estatísticas
     active_pages_count = pages.filter(is_active=True).count()
@@ -1057,3 +1061,322 @@ def posts_comparison_api(request, page_id):
             data["engagement_rate"].append(round(latest_metric.engagement_rate, 2))
 
     return JsonResponse({"data": data})
+
+
+@login_required
+def page_capabilities(request, page_id):
+    """Exibe todas as capabilities de uma página"""
+    from .services.permissions_checker import PermissionsChecker
+    from .services.facebook_api import FacebookAPIClient
+
+    page = get_object_or_404(FacebookPage, pk=page_id)
+
+    api_client = FacebookAPIClient(page.access_token)
+    permissions_checker = PermissionsChecker(api_client)
+
+    try:
+        capabilities = permissions_checker.get_full_capabilities(page.page_id)
+
+        context = {
+            "page": page,
+            "capabilities": capabilities,
+            "capabilities_json": json.dumps(capabilities, indent=2),
+        }
+
+        return render(request, "facebook_integration/page_capabilities.html", context)
+
+    except Exception as e:
+        messages.error(request, f"Erro ao verificar capabilities: {e}")
+        return redirect("facebook_integration:page_detail", page_id=page_id)
+
+
+@login_required
+def page_insights_advanced(request, page_id):
+    """Exibe insights avançados com gráficos demográficos"""
+    from .services.insights_collector import InsightsCollector
+    from .services.facebook_api import FacebookAPIClient
+
+    page = get_object_or_404(FacebookPage, pk=page_id)
+    days_back = int(request.GET.get("days", 30))
+
+    api_client = FacebookAPIClient(page.access_token)
+    insights_collector = InsightsCollector(api_client)
+
+    try:
+        complete_insights = insights_collector.get_complete_insights(
+            page.page_id, days_back=days_back
+        )
+
+        context = {
+            "page": page,
+            "insights": complete_insights,
+            "days_back": days_back,
+        }
+
+        return render(
+            request, "facebook_integration/page_insights_advanced.html", context
+        )
+
+    except Exception as e:
+        messages.error(request, f"Erro ao coletar insights: {e}")
+        return redirect("facebook_integration:page_detail", page_id=page_id)
+
+
+@login_required
+def leads_list(request):
+    """Lista todos os leads capturados"""
+    from .models import Lead
+
+    leads = Lead.objects.select_related("page").all()
+
+    status_filter = request.GET.get("status")
+    if status_filter:
+        leads = leads.filter(status=status_filter)
+
+    page_filter = request.GET.get("page")
+    if page_filter:
+        leads = leads.filter(page_id=page_filter)
+
+    search = request.GET.get("search")
+    if search:
+        leads = leads.filter(
+            models.Q(contact_fields__icontains=search)
+            | models.Q(form_name__icontains=search)
+            | models.Q(campaign_name__icontains=search)
+        )
+
+    paginator = Paginator(leads, 50)
+    page_number = request.GET.get("page_num", 1)
+    page_obj = paginator.get_page(page_number)
+
+    pages = FacebookPage.objects.filter(is_active=True)
+
+    context = {
+        "leads": page_obj,
+        "pages": pages,
+        "status_choices": Lead.STATUS_CHOICES,
+        "current_filters": {
+            "status": status_filter,
+            "page": page_filter,
+            "search": search,
+        },
+        "total_leads": leads.count(),
+    }
+
+    return render(request, "facebook_integration/leads_list.html", context)
+
+
+@login_required
+def lead_detail(request, lead_id):
+    """Exibe detalhes de um lead"""
+    from .models import Lead
+
+    lead = get_object_or_404(Lead, pk=lead_id)
+
+    if request.method == "POST":
+        new_status = request.POST.get("status")
+        new_notes = request.POST.get("notes")
+
+        if new_status:
+            lead.status = new_status
+        if new_notes is not None:
+            lead.notes = new_notes
+
+        lead.save()
+        messages.success(request, "Lead atualizado com sucesso!")
+        return redirect("lead_detail", lead_id=lead_id)
+
+    context = {
+        "lead": lead,
+        "status_choices": Lead.STATUS_CHOICES,
+    }
+
+    return render(request, "facebook_integration/lead_detail.html", context)
+
+
+@login_required
+def sync_leads_view(request, page_id):
+    """Dispara task para sincronizar leads de uma página"""
+    from .tasks import sync_page_leads
+
+    page = get_object_or_404(FacebookPage, pk=page_id)
+
+    try:
+        task = sync_page_leads.delay(page.page_id)
+        messages.success(
+            request, f"Sincronização de leads iniciada! Task ID: {task.id}"
+        )
+    except Exception as e:
+        messages.error(request, f"Erro ao iniciar sincronização: {e}")
+
+    return redirect("facebook_integration:page_detail", page_id=page_id)
+
+
+@login_required
+def sync_advanced_insights_view(request, page_id):
+    """Dispara task para sincronizar insights avançados"""
+    from .tasks import sync_advanced_insights
+
+    page = get_object_or_404(FacebookPage, pk=page_id)
+    days_back = int(request.GET.get("days", 30))
+
+    try:
+        task = sync_advanced_insights.delay(page.page_id, days_back)
+        messages.success(
+            request, f"Sincronização de insights iniciada! Task ID: {task.id}"
+        )
+    except Exception as e:
+        messages.error(request, f"Erro ao iniciar sincronização: {e}")
+
+    return redirect("facebook_integration:page_detail", page_id=page_id)
+
+
+@login_required
+def groups_manager(request):
+    """Lista todos os grupos do Facebook"""
+    from .models_groups import FacebookGroup
+
+    groups = FacebookGroup.objects.all().order_by("-is_active", "-member_count")
+
+    context = {
+        "groups": groups,
+        "total_groups": groups.count(),
+        "active_groups": groups.filter(is_active=True).count(),
+        "publishable_groups": groups.filter(can_publish=True).count(),
+        "title": "Gerenciar Grupos do Facebook",
+    }
+
+    return render(request, "facebook_integration/groups_manager.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def sync_facebook_groups(request):
+    """Sincroniza grupos do Facebook usando o token do usuário"""
+    from .models_groups import FacebookGroup
+    from .services.groups_collector import GroupsCollector
+    from .services.facebook_api import FacebookAPIClient
+    from django.conf import settings
+
+    try:
+        user_token = settings.FACEBOOK_ACCESS_TOKEN
+        api_client = FacebookAPIClient(user_token)
+        groups_collector = GroupsCollector(api_client)
+
+        result = groups_collector.get_user_groups()
+
+        if result["status"] == "no_permission":
+            messages.warning(
+                request,
+                "Sem permissão para acessar grupos. "
+                "Verifique se o token tem 'groups_access_member_info'",
+            )
+            return JsonResponse({"success": False, "error": result["error"]})
+
+        if result["status"] != "success":
+            messages.error(request, f"Erro: {result.get('error')}")
+            return JsonResponse({"success": False, "error": result.get("error")})
+
+        synced = 0
+        updated = 0
+
+        for group_data in result["groups"]:
+            group, created = FacebookGroup.objects.update_or_create(
+                group_id=group_data["group_id"],
+                defaults={
+                    "name": group_data["name"],
+                    "description": group_data.get("description", ""),
+                    "privacy": group_data.get("privacy", "CLOSED"),
+                    "member_count": group_data.get("member_count", 0),
+                    "cover_photo": group_data.get("cover_photo"),
+                    "permalink_url": group_data.get("permalink_url"),
+                    "can_publish": group_data.get("is_admin", False),
+                    "can_read": True,
+                    "last_sync": timezone.now(),
+                },
+            )
+
+            if created:
+                synced += 1
+            else:
+                updated += 1
+
+        message = f"✅ {synced} grupos adicionados, {updated} atualizados"
+        messages.success(request, message)
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": message,
+                "synced": synced,
+                "updated": updated,
+            }
+        )
+
+    except Exception as e:
+        error_msg = f"Erro ao sincronizar grupos: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({"success": False, "error": error_msg})
+
+
+@login_required
+def group_detail(request, group_id):
+    """Detalhes de um grupo específico"""
+    from .models_groups import FacebookGroup, GroupPost
+
+    group = get_object_or_404(FacebookGroup, pk=group_id)
+
+    recent_posts = GroupPost.objects.filter(group=group).order_by("-published_at")[:20]
+
+    accessible_pages = group.accessible_by_pages.all()
+
+    context = {
+        "group": group,
+        "recent_posts": recent_posts,
+        "accessible_pages": accessible_pages,
+        "title": f"Grupo: {group.name}",
+    }
+
+    return render(request, "facebook_integration/group_detail.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def check_group_permissions(request, group_id):
+    """Verifica permissões de um grupo"""
+    from .models_groups import FacebookGroup
+    from .services.groups_collector import GroupsCollector
+    from .services.facebook_api import FacebookAPIClient
+    from django.conf import settings
+
+    group = get_object_or_404(FacebookGroup, pk=group_id)
+
+    try:
+        user_token = settings.FACEBOOK_ACCESS_TOKEN
+        api_client = FacebookAPIClient(user_token)
+        groups_collector = GroupsCollector(api_client)
+
+        result = groups_collector.check_group_permissions(group.group_id)
+
+        if result["status"] == "success":
+            perms = result["permissions"]
+
+            group.can_publish = perms["can_post"]
+            group.can_read = perms["can_read"]
+            group.permissions = perms
+            group.save()
+
+            messages.success(
+                request,
+                f"Permissões atualizadas: "
+                f"Ler={perms['can_read']}, Publicar={perms['can_post']}",
+            )
+        else:
+            messages.error(request, f"Erro: {result.get('error')}")
+
+        return JsonResponse(result)
+
+    except Exception as e:
+        error_msg = f"Erro ao verificar permissões: {str(e)}"
+        messages.error(request, error_msg)
+        return JsonResponse({"success": False, "error": error_msg})

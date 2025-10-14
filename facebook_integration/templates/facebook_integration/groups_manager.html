@@ -1,0 +1,198 @@
+{% extends 'facebook_integration/base.html' %}
+{% load static %}
+
+{% block title %}Grupos do Facebook{% endblock %}
+
+{% block extra_css %}
+<style>
+    .group-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .group-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    .group-privacy-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .group-cover {
+        height: 150px;
+        object-fit: cover;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="bi bi-people-fill text-primary"></i> Grupos do Facebook</h2>
+            <p class="text-muted">Gerencie grupos e suas permissões de publicação</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <button class="btn btn-primary" onclick="syncGroups()">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar Grupos
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Total de Grupos</h6>
+                    <h2 class="mb-0">{{ total_groups }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Grupos Ativos</h6>
+                    <h2 class="mb-0 text-success">{{ active_groups }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="text-muted">Com Permissão Publicar</h6>
+                    <h2 class="mb-0 text-info">{{ publishable_groups }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Groups List -->
+    <div class="row">
+        {% if groups %}
+            {% for group in groups %}
+            <div class="col-md-4 mb-4">
+                <div class="card group-card border-0 shadow-sm h-100">
+                    <!-- Cover Photo -->
+                    {% if group.cover_photo %}
+                    <img src="{{ group.cover_photo }}" class="card-img-top group-cover" alt="{{ group.name }}">
+                    {% else %}
+                    <div class="group-cover d-flex align-items-center justify-content-center">
+                        <i class="bi bi-people-fill text-white" style="font-size: 3rem;"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <h5 class="card-title">{{ group.name }}</h5>
+                        
+                        <!-- Privacy Badge -->
+                        <span class="badge group-privacy-badge
+                            {% if group.privacy == 'OPEN' %}bg-success
+                            {% elif group.privacy == 'CLOSED' %}bg-warning
+                            {% else %}bg-danger{% endif %}">
+                            <i class="bi bi-shield-lock"></i> {{ group.get_privacy_display }}
+                        </span>
+                        
+                        <!-- Member Count -->
+                        <span class="badge bg-secondary group-privacy-badge ms-1">
+                            <i class="bi bi-people"></i> {{ group.get_member_count_display }} membros
+                        </span>
+                        
+                        <!-- Description -->
+                        {% if group.description %}
+                        <p class="card-text text-muted small mt-3">
+                            {{ group.description|truncatewords:20 }}
+                        </p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="card-footer bg-white border-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <!-- Status Icons -->
+                                {% if group.can_publish %}
+                                <span class="badge bg-success" title="Pode publicar">
+                                    <i class="bi bi-pencil-square"></i> Publicar
+                                </span>
+                                {% endif %}
+                                
+                                {% if group.can_read %}
+                                <span class="badge bg-info" title="Pode ler">
+                                    <i class="bi bi-eye"></i> Ler
+                                </span>
+                                {% endif %}
+                                
+                                {% if not group.is_active %}
+                                <span class="badge bg-secondary">Inativo</span>
+                                {% endif %}
+                            </div>
+                            
+                            <div>
+                                <a href="{% url 'facebook_integration:group_detail' group.id %}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    Ver Detalhes
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Nenhum grupo encontrado.</strong>
+                    Clique em "Sincronizar Grupos" para buscar seus grupos do Facebook.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Sincronizando grupos...</h5>
+                <p class="text-muted">Aguarde enquanto buscamos seus grupos do Facebook</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncGroups() {
+    const modal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    modal.show();
+    
+    fetch("{% url 'facebook_integration:sync_facebook_groups' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        modal.hide();
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        modal.hide();
+        alert('Erro na sincronização: ' + error);
+    });
+}
+</script>
+{% endblock %}

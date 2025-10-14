@@ -10,7 +10,9 @@ from .models import (
     AIConfiguration,
     PageMetrics,
     PostMetrics,
+    Lead,
 )
+from .models_groups import FacebookGroup, GroupPost
 
 
 @admin.register(FacebookPage)
@@ -386,5 +388,85 @@ class PostMetricsAdmin(admin.ModelAdmin):
     readonly_fields = ["collected_at", "engagement_rate"]
     date_hierarchy = "collected_at"
 
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(Lead)
+class LeadAdmin(admin.ModelAdmin):
+    list_display = [
+        "created_time",
+        "get_contact_name",
+        "get_contact_email",
+        "page",
+        "form_name",
+        "status",
+        "is_organic",
+    ]
+    list_filter = ["status", "is_organic", "page", "created_time"]
+    search_fields = [
+        "contact_fields",
+        "form_name",
+        "campaign_name",
+        "ad_name",
+    ]
+    readonly_fields = [
+        "lead_id",
+        "form_id",
+        "created_time",
+        "collected_at",
+        "updated_at",
+        "contact_fields",
+        "ad_id",
+        "campaign_id",
+    ]
+    
+    fieldsets = (
+        (
+            "Informações do Contato",
+            {
+                "fields": (
+                    "contact_fields",
+                    "status",
+                    "notes",
+                )
+            },
+        ),
+        (
+            "Origem",
+            {
+                "fields": (
+                    "page",
+                    "form_id",
+                    "form_name",
+                    "is_organic",
+                )
+            },
+        ),
+        (
+            "Campanha (se pago)",
+            {
+                "fields": (
+                    "campaign_id",
+                    "campaign_name",
+                    "ad_id",
+                    "ad_name",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Metadados",
+            {
+                "fields": (
+                    "lead_id",
+                    "created_time",
+                    "collected_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
+    
     def has_add_permission(self, request):
         return False

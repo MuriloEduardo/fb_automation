@@ -87,4 +87,45 @@ urlpatterns = [
         views.test_ai_configuration,
         name="test_ai_configuration",
     ),
+    # Capabilities & Insights
+    path(
+        "pages/<int:page_id>/capabilities/",
+        views.page_capabilities,
+        name="page_capabilities",
+    ),
+    path(
+        "pages/<int:page_id>/insights-advanced/",
+        views.page_insights_advanced,
+        name="page_insights_advanced",
+    ),
+    path(
+        "pages/<int:page_id>/sync-leads/",
+        views.sync_leads_view,
+        name="sync_leads",
+    ),
+    path(
+        "pages/<int:page_id>/sync-insights/",
+        views.sync_advanced_insights_view,
+        name="sync_insights",
+    ),
+    # Leads Management
+    path("leads/", views.leads_list, name="leads_list"),
+    path("leads/<int:lead_id>/", views.lead_detail, name="lead_detail"),
+    # Groups Management
+    path("groups/", views.groups_manager, name="groups_manager"),
+    path(
+        "groups/sync/",
+        views.sync_facebook_groups,
+        name="sync_facebook_groups"
+    ),
+    path(
+        "groups/<int:group_id>/",
+        views.group_detail,
+        name="group_detail"
+    ),
+    path(
+        "groups/<int:group_id>/check-permissions/",
+        views.check_group_permissions,
+        name="check_group_permissions"
+    ),
 ]

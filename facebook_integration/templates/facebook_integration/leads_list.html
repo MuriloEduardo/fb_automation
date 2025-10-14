@@ -1,0 +1,175 @@
+{% extends "facebook_integration/base.html" %}
+{% load static %}
+
+{% block title %}Gerenciamento de Leads{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-2">📋 Gerenciamento de Leads</h1>
+                    <p class="text-muted">Total: {{ total_leads }} leads</p>
+                </div>
+                <a href="{% url 'facebook_integration:dashboard' %}" class="btn btn-secondary">
+                    ← Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Status</label>
+                            <select name="status" class="form-select">
+                                <option value="">Todos</option>
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Página</label>
+                            <select name="page" class="form-select">
+                                <option value="">Todas</option>
+                                {% for page in pages %}
+                                <option value="{{ page.id }}" {% if current_filters.page == page.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ page.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Buscar</label>
+                            <input type="text" name="search" class="form-control" placeholder="Email, nome, campanha..." value="{{ current_filters.search|default:'' }}">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leads Table -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Telefone</th>
+                                    <th>Página</th>
+                                    <th>Formulário</th>
+                                    <th>Origem</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for lead in leads %}
+                                <tr>
+                                    <td>{{ lead.created_time|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ lead.get_contact_name }}</td>
+                                    <td>
+                                        <a href="mailto:{{ lead.get_contact_email }}">
+                                            {{ lead.get_contact_email }}
+                                        </a>
+                                    </td>
+                                    <td>{{ lead.get_contact_phone }}</td>
+                                    <td>
+                                        <a href="{% url 'facebook_integration:page_detail' lead.page.id %}">
+                                            {{ lead.page.name }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <small>{{ lead.form_name }}</small>
+                                    </td>
+                                    <td>
+                                        {% if lead.is_organic %}
+                                            <span class="badge bg-success">Orgânico</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Pago</span>
+                                            {% if lead.campaign_name %}
+                                            <br><small class="text-muted">{{ lead.campaign_name }}</small>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if lead.status == 'new' %}
+                                            <span class="badge bg-info">{{ lead.get_status_display }}</span>
+                                        {% elif lead.status == 'contacted' %}
+                                            <span class="badge bg-primary">{{ lead.get_status_display }}</span>
+                                        {% elif lead.status == 'qualified' %}
+                                            <span class="badge bg-warning">{{ lead.get_status_display }}</span>
+                                        {% elif lead.status == 'converted' %}
+                                            <span class="badge bg-success">{{ lead.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">{{ lead.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'facebook_integration:lead_detail' lead.id %}" class="btn btn-sm btn-outline-primary">
+                                            Ver Detalhes
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted py-4">
+                                        Nenhum lead encontrado com os filtros selecionados.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    {% if leads.has_other_pages %}
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if leads.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page_num={{ leads.previous_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.page %}&page={{ current_filters.page }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                    Anterior
+                                </a>
+                            </li>
+                            {% endif %}
+
+                            <li class="page-item active">
+                                <span class="page-link">
+                                    Página {{ leads.number }} de {{ leads.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if leads.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page_num={{ leads.next_page_number }}{% if current_filters.status %}&status={{ current_filters.status }}{% endif %}{% if current_filters.page %}&page={{ current_filters.page }}{% endif %}{% if current_filters.search %}&search={{ current_filters.search }}{% endif %}">
+                                    Próxima
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

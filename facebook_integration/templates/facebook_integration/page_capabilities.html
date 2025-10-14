@@ -1,0 +1,253 @@
+{% extends "facebook_integration/base.html" %}
+{% load static %}
+
+{% block title %}Capabilities - {{ page.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-2">🔐 Capabilities & Permissões</h1>
+                    <p class="text-muted">{{ page.name }}</p>
+                </div>
+                <a href="{% url 'facebook_integration:page_detail' page.id %}" class="btn btn-secondary">
+                    ← Voltar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Permissões do Token</h5>
+                    <h2 class="text-primary">{{ capabilities.summary.total_permissions }}</h2>
+                    <small class="text-muted">concedidas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Insights</h5>
+                    {% if capabilities.summary.can_read_insights %}
+                        <h2 class="text-success">✓</h2>
+                        <small class="text-success">Disponível</small>
+                    {% else %}
+                        <h2 class="text-danger">✗</h2>
+                        <small class="text-danger">Indisponível</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Leads</h5>
+                    {% if capabilities.summary.can_read_leads %}
+                        <h2 class="text-success">✓</h2>
+                        <small class="text-success">{{ capabilities.summary.total_leadgen_forms }} formulários</small>
+                    {% else %}
+                        <h2 class="text-danger">✗</h2>
+                        <small class="text-danger">Sem acesso</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Status</h5>
+                    <h2 class="text-info">⚡</h2>
+                    <small class="text-muted">Verificado agora</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Permissions -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🛡️ Permissões da Página</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% with perms=capabilities.permissions.permissions %}
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_analyze %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>ANALYZE</strong> - Ver insights e análises
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_advertise %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>ADVERTISE</strong> - Criar anúncios
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_moderate %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>MODERATE</strong> - Moderar conteúdo
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_create_content %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>CREATE_CONTENT</strong> - Publicar posts
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_manage %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>MANAGE</strong> - Gerenciar página
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" {% if perms.can_messaging %}checked{% endif %} disabled>
+                                <label class="form-check-label">
+                                    <strong>MESSAGING</strong> - Enviar mensagens
+                                </label>
+                            </div>
+                        </div>
+                        {% endwith %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Permissions -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🔑 Permissões do Token de Acesso</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Permissão</th>
+                                    <th>Descrição</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for perm, details in capabilities.token_permissions.details.items %}
+                                <tr>
+                                    <td><code>{{ perm }}</code></td>
+                                    <td>{{ details.description }}</td>
+                                    <td>
+                                        {% if details.granted %}
+                                            <span class="badge bg-success">✓ Concedida</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">✗ Negada</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leadgen Forms -->
+    {% if capabilities.leadgen.leadgen_access %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 Formulários de Leads</h5>
+                </div>
+                <div class="card-body">
+                    {% if capabilities.leadgen.forms %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>ID</th>
+                                    <th>Status</th>
+                                    <th>Total de Leads</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for form in capabilities.leadgen.forms %}
+                                <tr>
+                                    <td>{{ form.name }}</td>
+                                    <td><code>{{ form.id }}</code></td>
+                                    <td><span class="badge bg-success">{{ form.status }}</span></td>
+                                    <td>{{ form.leads_count|default:"0" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Nenhum formulário de lead encontrado.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Available Metrics -->
+    {% if capabilities.insights.insights_access %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 Métricas Disponíveis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for metric in capabilities.insights.available_metrics %}
+                        <div class="col-md-4 mb-2">
+                            <code class="text-primary">{{ metric }}</code>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- JSON Raw Data -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📄 Dados Completos (JSON)</h5>
+                </div>
+                <div class="card-body">
+                    <pre><code>{{ capabilities_json }}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

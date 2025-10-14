@@ -2,6 +2,7 @@ import requests
 import logging
 from typing import Dict, Any, Optional
 from django.conf import settings
+from ..cache import cache_facebook_api
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class FacebookAPIClient:
             logger.error(f"Erro na requisição para Facebook API: {e}")
             raise FacebookAPIException(f"Erro na API do Facebook: {str(e)}")
 
+    @cache_facebook_api('page_info', ttl_key='page_info')
     def get_page_info(self, page_id: str = None) -> Dict[str, Any]:
         """Obtém informações da página do Facebook"""
         target_page_id = page_id or self.page_id
@@ -115,12 +117,14 @@ class FacebookAPIClient:
 
         return self._make_request("POST", endpoint, data)
 
+    @cache_facebook_api('post_insights', ttl_key='insights')
     def get_post_insights(self, post_id: str) -> Dict[str, Any]:
         """Obtém métricas de um post específico"""
         endpoint = f"{post_id}/insights"
         params = {"metric": "post_impressions,post_engaged_users,post_clicks"}
         return self._make_request("GET", endpoint, params)
 
+    @cache_facebook_api('post_details', ttl_key='post_details')
     def get_post_details(self, post_id: str) -> Dict[str, Any]:
         """Obtém detalhes de um post específico"""
         endpoint = f"{post_id}"

@@ -1,0 +1,207 @@
+{% extends 'facebook_integration/base.html' %}
+{% load static %}
+
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Back Button -->
+    <div class="mb-3">
+        <a href="{% url 'facebook_integration:groups_manager' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para Grupos
+        </a>
+    </div>
+
+    <!-- Group Header -->
+    <div class="card border-0 shadow-sm mb-4">
+        {% if group.cover_photo %}
+        <img src="{{ group.cover_photo }}" class="card-img-top" style="max-height: 200px; object-fit: cover;" alt="{{ group.name }}">
+        {% endif %}
+        
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h2>{{ group.name }}</h2>
+                    
+                    <div class="mb-3">
+                        <span class="badge
+                            {% if group.privacy == 'OPEN' %}bg-success
+                            {% elif group.privacy == 'CLOSED' %}bg-warning
+                            {% else %}bg-danger{% endif %}">
+                            <i class="bi bi-shield-lock"></i> {{ group.get_privacy_display }}
+                        </span>
+                        
+                        <span class="badge bg-secondary ms-1">
+                            <i class="bi bi-people"></i> {{ group.get_member_count_display }} membros
+                        </span>
+                        
+                        {% if group.is_active %}
+                        <span class="badge bg-success ms-1">Ativo</span>
+                        {% else %}
+                        <span class="badge bg-secondary ms-1">Inativo</span>
+                        {% endif %}
+                    </div>
+                    
+                    {% if group.description %}
+                    <p class="text-muted">{{ group.description }}</p>
+                    {% endif %}
+                    
+                    {% if group.permalink_url %}
+                    <a href="{{ group.permalink_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-box-arrow-up-right"></i> Ver no Facebook
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="col-md-4">
+                    <h5>Permissões</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Publicar Posts
+                            {% if group.can_publish %}
+                            <span class="badge bg-success">Sim</span>
+                            {% else %}
+                            <span class="badge bg-danger">Não</span>
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Ler Conteúdo
+                            {% if group.can_read %}
+                            <span class="badge bg-success">Sim</span>
+                            {% else %}
+                            <span class="badge bg-danger">Não</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                    
+                    <button class="btn btn-sm btn-primary w-100 mt-3" onclick="checkPermissions()">
+                        <i class="bi bi-arrow-repeat"></i> Verificar Permissões
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Páginas com Acesso -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                <i class="bi bi-file-earmark-text"></i> Páginas com Acesso a Este Grupo
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if accessible_pages %}
+            <div class="row">
+                {% for page in accessible_pages %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6>{{ page.name }}</h6>
+                            <p class="text-muted small mb-2">{{ page.category }}</p>
+                            <a href="{% url 'facebook_integration:page_detail' page.id %}" class="btn btn-sm btn-outline-primary">
+                                Ver Página
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i>
+                Nenhuma página associada a este grupo ainda.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Posts -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">
+                <i class="bi bi-chat-dots"></i> Posts Recentes
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if recent_posts %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Mensagem</th>
+                            <th>Página</th>
+                            <th>Engajamento</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for post in recent_posts %}
+                        <tr>
+                            <td>{{ post.published_at|date:"d/m/Y H:i" }}</td>
+                            <td>{{ post.message|truncatewords:10 }}</td>
+                            <td>
+                                {% if post.page %}
+                                {{ post.page.name }}
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>
+                                    <i class="bi bi-heart"></i> {{ post.likes_count }}
+                                    <i class="bi bi-chat ms-2"></i> {{ post.comments_count }}
+                                    <i class="bi bi-share ms-2"></i> {{ post.shares_count }}
+                                </small>
+                            </td>
+                            <td>
+                                <span class="badge
+                                    {% if post.status == 'published' %}bg-success
+                                    {% elif post.status == 'failed' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ post.get_status_display }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle"></i>
+                Nenhum post encontrado neste grupo.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function checkPermissions() {
+    if (!confirm('Verificar permissões deste grupo?')) return;
+    
+    fetch("{% url 'facebook_integration:check_group_permissions' group.id %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Permissões atualizadas!');
+            location.reload();
+        } else {
+            alert('Erro: ' + (data.error || 'Desconhecido'));
+        }
+    })
+    .catch(error => {
+        alert('Erro na verificação: ' + error);
+    });
+}
+</script>
+{% endblock %}

@@ -2,6 +2,134 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+# Importar modelos de grupos
+from .models_groups import FacebookGroup, GroupPost
+
+
+class Lead(models.Model):
+    """Leads capturados de formulários do Facebook"""
+
+    STATUS_CHOICES = [
+        ("new", "Novo"),
+        ("contacted", "Contatado"),
+        ("qualified", "Qualificado"),
+        ("converted", "Convertido"),
+        ("lost", "Perdido"),
+    ]
+
+    page = models.ForeignKey(
+        "FacebookPage",
+        on_delete=models.CASCADE,
+        related_name="leads",
+        verbose_name="Página",
+    )
+
+    lead_id = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="ID do Lead (Facebook)"
+    )
+
+    form_id = models.CharField(
+        max_length=100,
+        verbose_name="ID do Formulário"
+    )
+    form_name = models.CharField(
+        max_length=255,
+        verbose_name="Nome do Formulário"
+    )
+
+    is_organic = models.BooleanField(
+        default=True,
+        verbose_name="Lead Orgânico"
+    )
+
+    ad_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="ID do Anúncio"
+    )
+    ad_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nome do Anúncio"
+    )
+
+    campaign_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="ID da Campanha"
+    )
+    campaign_name = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        verbose_name="Nome da Campanha"
+    )
+
+    contact_fields = models.JSONField(
+        default=dict,
+        verbose_name="Campos do Contato"
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="new",
+        verbose_name="Status"
+    )
+
+    notes = models.TextField(
+        blank=True,
+        verbose_name="Observações"
+    )
+
+    created_time = models.DateTimeField(
+        verbose_name="Data de Criação (Facebook)"
+    )
+    collected_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Coletado em"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Atualizado em"
+    )
+
+    class Meta:
+        verbose_name = "Lead"
+        verbose_name_plural = "Leads"
+        ordering = ["-created_time"]
+        indexes = [
+            models.Index(fields=["page", "-created_time"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["lead_id"]),
+        ]
+
+    def __str__(self):
+        email = self.contact_fields.get("email", "Sem email")
+        return f"Lead {email} - {self.form_name}"
+
+    def get_contact_name(self):
+        return (
+            self.contact_fields.get("full_name") or
+            self.contact_fields.get("first_name") or
+            "Nome não informado"
+        )
+
+    def get_contact_email(self):
+        return self.contact_fields.get("email", "Email não informado")
+
+    def get_contact_phone(self):
+        return (
+            self.contact_fields.get("phone_number") or
+            self.contact_fields.get("phone") or
+            "Telefone não informado"
+        )
+
 
 class FacebookPage(models.Model):
     """Model para armazenar informações das páginas do Facebook"""
@@ -70,6 +198,9 @@ class ScheduledPost(models.Model):
         ("pending", "Pendente"),
         ("generating", "Gerando Conteúdo"),
         ("ready", "Pronto para Publicar"),
+        ("pending_approval", "Aguardando Aprovação"),
+        ("approved", "Aprovado"),
+        ("rejected", "Rejeitado"),
         ("publishing", "Publicando"),
         ("published", "Publicado"),
         ("failed", "Falhou"),
@@ -117,6 +248,25 @@ class ScheduledPost(models.Model):
 
     # Logs e erros
     error_message = models.TextField(blank=True)
+
+    # Workflow de aprovação
+    requires_approval = models.BooleanField(
+        default=False,
+        verbose_name="Requer Aprovação",
+        help_text="Se marcado, o post precisa ser aprovado antes de publicar",
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_posts",
+        verbose_name="Aprovado Por",
+    )
+    approved_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Aprovado Em"
+    )
+    rejection_reason = models.TextField(blank=True, verbose_name="Motivo da Rejeição")
 
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -290,6 +440,56 @@ class PageMetrics(models.Model):
     page_engaged_users = models.IntegerField(
         default=0, verbose_name="Usuários Engajados"
     )
+    
+    # Alcance segmentado
+    page_impressions_paid = models.IntegerField(
+        default=0, verbose_name="Impressões Pagas"
+    )
+    page_impressions_organic = models.IntegerField(
+        default=0, verbose_name="Impressões Orgânicas"
+    )
+    page_impressions_viral = models.IntegerField(
+        default=0, verbose_name="Impressões Virais"
+    )
+    
+    # Visualizações
+    page_views_total = models.IntegerField(
+        default=0, verbose_name="Visualizações Totais"
+    )
+    page_views_unique = models.IntegerField(
+        default=0, verbose_name="Visualizações Únicas"
+    )
+    
+    # Ações na página
+    page_post_engagements = models.IntegerField(
+        default=0, verbose_name="Engajamentos em Posts"
+    )
+    page_actions_total = models.IntegerField(
+        default=0, verbose_name="Ações Totais"
+    )
+    page_negative_feedback = models.IntegerField(
+        default=0, verbose_name="Feedback Negativo"
+    )
+    
+    # Vídeos
+    page_video_views = models.IntegerField(
+        default=0, verbose_name="Visualizações de Vídeos"
+    )
+    
+    # Fãs/Seguidores
+    page_fan_adds = models.IntegerField(
+        default=0, verbose_name="Novos Fãs"
+    )
+    page_fan_removes = models.IntegerField(
+        default=0, verbose_name="Fãs Perdidos"
+    )
+    
+    # Demografia (JSON)
+    demographics = models.JSONField(
+        default=dict, 
+        blank=True,
+        verbose_name="Dados Demográficos"
+    )
 
     # Timestamp
     collected_at = models.DateTimeField(auto_now_add=True, verbose_name="Coletado em")
@@ -324,6 +524,41 @@ class PostMetrics(models.Model):
     # Alcance
     reach = models.IntegerField(default=0, verbose_name="Alcance")
     impressions = models.IntegerField(default=0, verbose_name="Impressões")
+    
+    # Alcance segmentado
+    impressions_paid = models.IntegerField(
+        default=0, verbose_name="Impressões Pagas"
+    )
+    impressions_organic = models.IntegerField(
+        default=0, verbose_name="Impressões Orgânicas"
+    )
+    impressions_viral = models.IntegerField(
+        default=0, verbose_name="Impressões Virais"
+    )
+    impressions_unique = models.IntegerField(
+        default=0, verbose_name="Impressões Únicas"
+    )
+
+    # Métricas estendidas
+    post_clicks = models.IntegerField(default=0, verbose_name="Cliques no Post")
+    post_clicks_unique = models.IntegerField(default=0, verbose_name="Cliques Únicos")
+    engaged_users = models.IntegerField(
+        default=0, verbose_name="Usuários Engajados"
+    )
+    
+    # Vídeo
+    video_views = models.IntegerField(default=0, verbose_name="Visualizações de Vídeo")
+    video_views_unique = models.IntegerField(
+        default=0, verbose_name="Visualizações Únicas"
+    )
+    
+    # Reações
+    reactions_count = models.IntegerField(default=0, verbose_name="Total de Reações")
+    reactions_by_type = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Reações por Tipo"
+    )
 
     # Engajamento calculado
     engagement_rate = models.FloatField(
@@ -343,7 +578,7 @@ class PostMetrics(models.Model):
 
     def __str__(self):
         return (
-            f"Post {self.post.post_id} - {self.collected_at.strftime('%d/%m/%Y %H:%M')}"
+            f"Post {self.post.id} - {self.collected_at.strftime('%d/%m/%Y %H:%M')}"
         )
 
     def save(self, *args, **kwargs):

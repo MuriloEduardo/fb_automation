@@ -15,6 +15,12 @@ from .services.image_generation import generate_image_with_fallback
 from .services.facebook_api import FacebookAPIClient, FacebookAPIException
 from .models import ScheduledPost, PublishedPost, FacebookPage, PostTemplate
 from .services.image_prompt_generation import generate_image_prompt_with_fallback
+from .notifications import (
+    send_task_failure_notification,
+    send_daily_summary_email,
+    send_post_published_notification,
+)
+from .cache import invalidate_post_cache, invalidate_page_cache
 
 logger = logging.getLogger(__name__)
 
@@ -109,16 +115,36 @@ def generate_content_for_post(self, post_id):
         return f"Post {post_id} não encontrado"
 
     except OpenAIServiceException as e:
+        error_msg = f"Erro na IA: {str(e)}"
         logger.error(f"Erro na IA para post {post_id}: {e}")
         post.status = "failed"
-        post.error_message = f"Erro na IA: {str(e)}"
+        post.error_message = error_msg
         post.save()
+
+        # Enviar notificação de falha
+        send_task_failure_notification(
+            task_name="generate_content_for_post",
+            task_id=self.request.id,
+            error_message=error_msg,
+            scheduled_post=post,
+        )
+
         return f"Erro na IA para post {post_id}"
     except Exception as e:
+        error_msg = f"Erro na IA: {str(e)}"
         logger.error(f"Erro na geração de conteúdo para post {post_id}: {e}")
         post.status = "failed"
-        post.error_message = f"Erro na IA: {str(e)}"
+        post.error_message = error_msg
         post.save()
+
+        # Enviar notificação de falha
+        send_task_failure_notification(
+            task_name="generate_content_for_post",
+            task_id=self.request.id,
+            error_message=error_msg,
+            scheduled_post=post,
+        )
+
         return f"Erro na IA para post {post_id}"
 
 
@@ -186,6 +212,9 @@ def publish_post_task(post_id):
             facebook_post_url=fb_url,
         )
 
+        # Invalidar cache da página
+        invalidate_page_cache(post.facebook_page.page_id)
+
         logger.info(f"Post {post_id} publicado com sucesso: {facebook_post_id}")
         return f"Post {post_id} publicado: {facebook_post_id}"
 
@@ -194,17 +223,37 @@ def publish_post_task(post_id):
         return f"Post {post_id} não encontrado"
 
     except FacebookAPIException as e:
+        error_msg = f"Erro do Facebook: {str(e)}"
         logger.error(f"Erro do Facebook para post {post_id}: {e}")
         post.status = "failed"
-        post.error_message = f"Erro do Facebook: {str(e)}"
+        post.error_message = error_msg
         post.save()
+
+        # Enviar notificação de falha
+        send_task_failure_notification(
+            task_name="publish_post_task",
+            task_id=str(post_id),
+            error_message=error_msg,
+            scheduled_post=post,
+        )
+
         return f"Erro do Facebook para post {post_id}"
 
     except Exception as e:
+        error_msg = str(e)
         logger.error(f"Erro geral para post {post_id}: {e}")
         post.status = "failed"
-        post.error_message = str(e)
+        post.error_message = error_msg
         post.save()
+
+        # Enviar notificação de falha
+        send_task_failure_notification(
+            task_name="publish_post_task",
+            task_id=str(post_id),
+            error_message=error_msg,
+            scheduled_post=post,
+        )
+
         return f"Erro para post {post_id}: {str(e)}"
 
 
@@ -278,42 +327,7 @@ def schedule_content_generation():
 @shared_task
 def send_daily_report():
     """Envia relatório diário por email"""
-    today = timezone.now().date()
-
-    # Estatísticas do dia
-    published_today = PublishedPost.objects.filter(published_at__date=today).count()
-
-    scheduled_tomorrow = ScheduledPost.objects.filter(
-        scheduled_time__date=today + timezone.timedelta(days=1),
-        status__in=["pending", "ready"],
-    ).count()
-
-    failed_today = ScheduledPost.objects.filter(
-        updated_at__date=today, status="failed"
-    ).count()
-
-    report = f"""
-    Relatório Diário - {today.strftime('%d/%m/%Y')}
-    
-    📊 Estatísticas:
-    • Posts publicados hoje: {published_today}
-    • Posts agendados para amanhã: {scheduled_tomorrow}
-    • Posts que falharam: {failed_today}
-    
-    🤖 Sistema funcionando normalmente.
-    """
-
-    # Aqui você pode configurar o envio de email
-    # send_mail(
-    #     'Relatório Diário - Facebook Automation',
-    #     report,
-    #     'noreply@seudominio.com',
-    #     ['admin@seudominio.com'],
-    #     fail_silently=False,
-    # )
-
-    logger.info(f"Relatório diário gerado: {published_today} posts publicados")
-    return report
+    return send_daily_summary_email()
 
 
 @shared_task(bind=True)
@@ -1003,11 +1017,16 @@ def _sync_post_metrics(post):
     api_client = FacebookAPIClient(post.facebook_page.access_token)
 
     try:
-        # Buscar dados do post
+        # Buscar dados do post com campos estendidos
         post_data = api_client._make_request(
             "GET",
             f"{post.facebook_post_id}",
-            data={"fields": "likes.summary(true),comments.summary(true),shares"},
+            data={
+                "fields": (
+                    "likes.summary(true),comments.summary(true),shares,"
+                    "reactions.summary(true)"
+                )
+            },
         )
     except Exception as e:
         logger.warning(f"Post {post.facebook_post_id} não encontrado ou deletado: {e}")
@@ -1016,17 +1035,30 @@ def _sync_post_metrics(post):
     likes = post_data.get("likes", {}).get("summary", {}).get("total_count", 0)
     comments = post_data.get("comments", {}).get("summary", {}).get("total_count", 0)
     shares = post_data.get("shares", {}).get("count", 0)
+    reactions = post_data.get("reactions", {}).get("summary", {}).get("total_count", 0)
 
-    # Buscar insights do post
+    # Buscar insights do post com métricas estendidas
+    impressions = 0
+    reach = 0
+    post_clicks = 0
+    post_clicks_unique = 0
+    viral_impressions = 0
+    video_views = 0
+    video_views_unique = 0
+
     try:
         insights = api_client._make_request(
             "GET",
             f"{post.facebook_post_id}/insights",
-            data={"metric": "post_impressions,post_impressions_unique"},
+            data={
+                "metric": (
+                    "post_impressions,post_impressions_unique,"
+                    "post_clicks,post_clicks_unique,"
+                    "post_impressions_viral,"
+                    "post_video_views,post_video_views_unique"
+                )
+            },
         )
-
-        impressions = 0
-        reach = 0
 
         for metric in insights.get("data", []):
             metric_name = metric.get("name")
@@ -1039,10 +1071,19 @@ def _sync_post_metrics(post):
                     impressions = value
                 elif metric_name == "post_impressions_unique":
                     reach = value
+                elif metric_name == "post_clicks":
+                    post_clicks = value
+                elif metric_name == "post_clicks_unique":
+                    post_clicks_unique = value
+                elif metric_name == "post_impressions_viral":
+                    viral_impressions = value
+                elif metric_name == "post_video_views":
+                    video_views = value
+                elif metric_name == "post_video_views_unique":
+                    video_views_unique = value
 
     except Exception as e:
-        logger.warning(f"Não foi possível obter insights do post: {e}")
-        impressions = reach = 0
+        logger.warning(f"Não foi possível obter insights estendidos do post: {e}")
 
     # Criar registro de métrica
     PostMetrics.objects.create(
@@ -1050,8 +1091,280 @@ def _sync_post_metrics(post):
         likes_count=likes,
         comments_count=comments,
         shares_count=shares,
+        reactions_count=reactions,
         reach=reach,
         impressions=impressions,
+        post_clicks=post_clicks,
+        post_clicks_unique=post_clicks_unique,
+        impressions_viral=viral_impressions,
+        video_views=video_views,
+        video_views_unique=video_views_unique,
     )
 
-    return {"likes": likes, "comments": comments, "shares": shares, "reach": reach}
+    return {
+        "likes": likes,
+        "comments": comments,
+        "shares": shares,
+        "reach": reach,
+        "reactions": reactions,
+        "post_clicks": post_clicks,
+        "viral_impressions": viral_impressions,
+        "video_views": video_views,
+    }
+
+
+@shared_task
+def cleanup_old_metrics(days_to_keep=90):
+    """Remove métricas antigas para manter o banco limpo"""
+    from .models import PageMetrics, PostMetrics
+    from datetime import timedelta
+
+    cutoff_date = timezone.now() - timedelta(days=days_to_keep)
+
+    # Deletar PageMetrics antigas
+    deleted_page_metrics = PageMetrics.objects.filter(
+        collected_at__lt=cutoff_date
+    ).delete()
+
+    # Deletar PostMetrics antigas
+    deleted_post_metrics = PostMetrics.objects.filter(
+        collected_at__lt=cutoff_date
+    ).delete()
+
+    logger.info(
+        f"Limpeza concluída: {deleted_page_metrics[0]} PageMetrics e "
+        f"{deleted_post_metrics[0]} PostMetrics deletados"
+    )
+
+    return {
+        "status": "completed",
+        "deleted_page_metrics": deleted_page_metrics[0],
+        "deleted_post_metrics": deleted_post_metrics[0],
+        "cutoff_date": cutoff_date.isoformat(),
+    }
+
+
+@shared_task
+def create_automatic_backup():
+    """Task para criar backup automático do banco de dados"""
+    from .backup import create_database_backup
+
+    return create_database_backup()
+
+
+@shared_task
+def sync_advanced_insights(page_id=None, days_back=30):
+    """Sincroniza insights avançados das páginas"""
+    from .models import FacebookPage, PageMetrics
+    from .services.insights_collector import InsightsCollector
+    from .services.facebook_api import FacebookAPIClient
+    
+    logger.info(f"Iniciando sync de insights avançados. Page: {page_id}, Days: {days_back}")
+    
+    if page_id:
+        pages = FacebookPage.objects.filter(page_id=page_id, is_active=True)
+    else:
+        pages = FacebookPage.objects.filter(is_active=True)
+    
+    results = {
+        "total_pages": pages.count(),
+        "success": 0,
+        "errors": 0,
+        "pages_data": [],
+    }
+    
+    for page in pages:
+        try:
+            api_client = FacebookAPIClient(page.access_token)
+            insights_collector = InsightsCollector(api_client)
+            
+            complete_insights = insights_collector.get_complete_insights(
+                page.page_id,
+                days_back=days_back
+            )
+            
+            if complete_insights.get('demographics', {}).get('status') == 'success':
+                demographics_data = complete_insights['demographics'].get('demographics', {})
+            else:
+                demographics_data = {}
+            
+            latest_reach = complete_insights.get('reach', {}).get('insights', {})
+            latest_fans = complete_insights.get('fans', {}).get('insights', {})
+            latest_engagement = complete_insights.get('engagement', {}).get('insights', {})
+            latest_views = complete_insights.get('page_views', {}).get('insights', {})
+            
+            metric = PageMetrics.objects.create(
+                page=page,
+                followers_count=latest_fans.get('page_fans', {}).get('latest_value', 0),
+                likes_count=latest_fans.get('page_fans', {}).get('latest_value', 0),
+                page_impressions=latest_reach.get('page_impressions', {}).get('latest_value', 0),
+                page_impressions_unique=latest_reach.get('page_impressions_unique', {}).get('latest_value', 0),
+                page_impressions_paid=latest_reach.get('page_impressions_paid', {}).get('latest_value', 0),
+                page_impressions_organic=latest_reach.get('page_impressions_organic', {}).get('latest_value', 0),
+                page_impressions_viral=latest_reach.get('page_impressions_viral', {}).get('latest_value', 0),
+                page_engaged_users=latest_engagement.get('page_engaged_users', {}).get('latest_value', 0),
+                page_post_engagements=latest_engagement.get('page_post_engagements', {}).get('latest_value', 0),
+                page_actions_total=latest_engagement.get('page_actions_post_reactions_total', {}).get('latest_value', 0),
+                page_negative_feedback=latest_engagement.get('page_negative_feedback', {}).get('latest_value', 0),
+                page_views_total=latest_views.get('page_views_total', {}).get('latest_value', 0),
+                page_views_unique=latest_views.get('page_views_logged_in_unique', {}).get('latest_value', 0),
+                page_video_views=latest_views.get('page_video_views', {}).get('latest_value', 0),
+                page_fan_adds=latest_fans.get('page_fan_adds', {}).get('latest_value', 0),
+                page_fan_removes=latest_fans.get('page_fan_removes', {}).get('latest_value', 0),
+                demographics=demographics_data,
+            )
+            
+            results["success"] += 1
+            results["pages_data"].append({
+                "page_id": page.page_id,
+                "page_name": page.name,
+                "status": "success",
+                "metric_id": metric.id,
+            })
+            
+            logger.info(f"Insights avançados coletados para {page.name}")
+            
+        except Exception as e:
+            results["errors"] += 1
+            results["pages_data"].append({
+                "page_id": page.page_id,
+                "page_name": page.name,
+                "status": "error",
+                "error": str(e),
+            })
+            logger.error(f"Erro ao coletar insights de {page.name}: {e}")
+    
+    return results
+
+
+@shared_task
+def sync_page_leads(page_id=None):
+    """Sincroniza leads das páginas"""
+    from .models import FacebookPage, Lead
+    from .services.leads_collector import LeadsCollector
+    from .services.facebook_api import FacebookAPIClient
+    from dateutil import parser
+    
+    logger.info(f"Iniciando sync de leads. Page: {page_id}")
+    
+    if page_id:
+        pages = FacebookPage.objects.filter(page_id=page_id, is_active=True)
+    else:
+        pages = FacebookPage.objects.filter(is_active=True)
+    
+    results = {
+        "total_pages": pages.count(),
+        "success": 0,
+        "errors": 0,
+        "total_new_leads": 0,
+        "pages_data": [],
+    }
+    
+    for page in pages:
+        try:
+            api_client = FacebookAPIClient(page.access_token)
+            leads_collector = LeadsCollector(api_client)
+            
+            all_leads_data = leads_collector.get_all_leads(page.page_id)
+            
+            if all_leads_data['status'] == 'no_permission':
+                logger.warning(
+                    f"Página {page.name} não tem permissão para leads: "
+                    f"{all_leads_data.get('error')}"
+                )
+                results["pages_data"].append({
+                    "page_id": page.page_id,
+                    "page_name": page.name,
+                    "status": "no_permission",
+                    "message": all_leads_data.get('error'),
+                })
+                continue
+            
+            if all_leads_data['status'] != 'success':
+                results["errors"] += 1
+                results["pages_data"].append({
+                    "page_id": page.page_id,
+                    "page_name": page.name,
+                    "status": "error",
+                    "error": all_leads_data.get('error', 'Unknown error'),
+                })
+                continue
+            
+            new_leads_count = 0
+            
+            for lead_data in all_leads_data.get('leads', []):
+                lead_id = lead_data['lead_id']
+                
+                if not Lead.objects.filter(lead_id=lead_id).exists():
+                    Lead.objects.create(
+                        page=page,
+                        lead_id=lead_id,
+                        form_id=lead_data['form_id'],
+                        form_name=lead_data['form_name'],
+                        is_organic=lead_data['is_organic'],
+                        ad_id=lead_data.get('ad_id'),
+                        ad_name=lead_data.get('ad_name'),
+                        campaign_id=lead_data.get('campaign_id'),
+                        campaign_name=lead_data.get('campaign_name'),
+                        contact_fields=lead_data['fields'],
+                        created_time=parser.parse(lead_data['created_time']),
+                    )
+                    new_leads_count += 1
+            
+            results["success"] += 1
+            results["total_new_leads"] += new_leads_count
+            results["pages_data"].append({
+                "page_id": page.page_id,
+                "page_name": page.name,
+                "status": "success",
+                "new_leads": new_leads_count,
+                "total_leads": all_leads_data['total_leads'],
+            })
+            
+            logger.info(f"{new_leads_count} novos leads coletados para {page.name}")
+            
+        except Exception as e:
+            results["errors"] += 1
+            results["pages_data"].append({
+                "page_id": page.page_id,
+                "page_name": page.name,
+                "status": "error",
+                "error": str(e),
+            })
+            logger.error(f"Erro ao coletar leads de {page.name}: {e}")
+    
+    return results
+
+
+@shared_task
+def check_page_capabilities(page_id):
+    """Verifica todas as capabilities de uma página"""
+    from .models import FacebookPage
+    from .services.permissions_checker import PermissionsChecker
+    from .services.facebook_api import FacebookAPIClient
+    
+    try:
+        page = FacebookPage.objects.get(page_id=page_id)
+        api_client = FacebookAPIClient(page.access_token)
+        permissions_checker = PermissionsChecker(api_client)
+        
+        capabilities = permissions_checker.get_full_capabilities(page_id)
+        
+        return {
+            "status": "success",
+            "page_id": page_id,
+            "page_name": page.name,
+            "capabilities": capabilities,
+        }
+        
+    except FacebookPage.DoesNotExist:
+        return {
+            "status": "error",
+            "error": f"Página {page_id} não encontrada",
+        }
+    except Exception as e:
+        logger.error(f"Erro ao verificar capabilities de {page_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+        }
